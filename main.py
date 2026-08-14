@@ -5,9 +5,10 @@ import sqlite3
 from urllib.parse import urlparse
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from aiogram.enums import ChatMemberStatus
+from aiogram.enums import ChatMemberStatus, ParseMode
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
@@ -16,7 +17,7 @@ if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable is missing")
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(BOT_TOKEN)
+bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
 DB = "bot.db"
@@ -133,6 +134,7 @@ async def check_sub(call: CallbackQuery):
         )
     else:
         await call.answer("❌ Hali barcha kanallarga obuna bo‘lmagansiz.", show_alert=True)
+        return
     await call.answer()
 
 async def send_movie(message: Message, code: str):
@@ -156,6 +158,15 @@ async def send_movie(message: Message, code: str):
         reply_markup=kb
     )
 
+@dp.message(Command("admin"))
+async def admin(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    await message.answer(
+        "👨‍💻 <b>ADMIN PANEL</b>\n\nKerakli bo‘limni tanlang:",
+        reply_markup=admin_kb()
+    )
+
 @dp.message(F.text)
 async def text_handler(message: Message):
     add_user(message)
@@ -167,12 +178,6 @@ async def text_handler(message: Message):
         await send_movie(message, text)
     else:
         await message.answer("⚠️ Kino kodini raqam ko‘rinishida yuboring.\nMasalan: <code>125</code>")
-
-@dp.message(Command("admin"))
-async def admin(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    await message.answer("👨‍💻 <b>ADMIN PANEL</b>\n\nKerakli bo‘limni tanlang:", reply_markup=admin_kb())
 
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats(call: CallbackQuery):
