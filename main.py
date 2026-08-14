@@ -13,6 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     CallbackQuery,
+    ChatJoinRequest,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
@@ -210,10 +211,14 @@ async def subscribed(user_id: int) -> bool:
     if not rows:
         return True
 
+    me = await bot.get_me()
+
     for row in rows:
+        chat_id = row["chat_id"]
+
         try:
             member = await bot.get_chat_member(
-                chat_id=row["chat_id"],
+                chat_id=chat_id,
                 user_id=user_id,
             )
 
@@ -229,10 +234,47 @@ async def subscribed(user_id: int) -> bool:
                 if getattr(member, "is_member", False):
                     continue
 
+            # A pending join request is not returned as MEMBER by
+            # getChatMember. Try to approve it automatically.
+            try:
+                await bot.approve_chat_join_request(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                )
+                await asyncio.sleep(0.4)
+
+                member = await bot.get_chat_member(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                )
+
+                if member.status in {
+                    ChatMemberStatus.MEMBER,
+                    ChatMemberStatus.ADMINISTRATOR,
+                    ChatMemberStatus.CREATOR,
+                }:
+                    continue
+
+                if (
+                    member.status == ChatMemberStatus.RESTRICTED
+                    and getattr(member, "is_member", False)
+                ):
+                    continue
+
+            except Exception:
+                # No pending request, or bot lacks permission to approve it.
+                logging.info(
+                    "No approvable join request for user %s in %s",
+                    user_id,
+                    chat_id,
+                )
+
             return False
 
         except Exception:
-            logging.exception("Subscription check failed for %s", row["chat_id"])
+            logging.exception(
+                "Subscription check failed for %s", chat_id
+            )
             return False
 
     return True
@@ -979,6 +1021,32 @@ async def delete_channel_state(message: Message, state: FSMContext):
         "✅ Kanal o‘chirildi." if cur.rowcount else "❌ Kanal ID topilmadi.",
         reply_markup=channels_kb(),
     )
+
+
+# ---------------- JOIN REQUESTS ----------------
+@dp.chat_join_request()
+async def handle_join_request(request: ChatJoinRequest):
+    """
+    Private channels with join requests:
+    when a user sends a join request, automatically approve it so the
+    user becomes a real member and Telegram's getChatMember check succeeds.
+    """
+    try:
+        await bot.approve_chat_join_request(
+            chat_id=request.chat.id,
+            user_id=request.from_user.id,
+        )
+        logging.info(
+            "Approved join request: user=%s chat=%s",
+            request.from_user.id,
+            request.chat.id,
+        )
+    except Exception:
+        logging.exception(
+            "Could not approve join request: user=%s chat=%s",
+            request.from_user.id,
+            request.chat.id,
+        )
 
 
 # ---------------- SUBSCRIPTION CALLBACK ----------------
