@@ -27,6 +27,17 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Ovoz fayllarini yuklab olish
+        run: |
+          M=ypx-oyin/web3d/audio/manifest.txt
+          [ -f "$M" ] || exit 0
+          grep -v '^#' "$M" | while read -r f url; do
+            [ -n "$f" ] || continue
+            mkdir -p "ypx-oyin/web3d/audio/$(dirname "$f")"
+            curl -sfL -o "ypx-oyin/web3d/audio/$f" "$url" && echo "OK $f" || echo "::warning::yuklab bo'lmadi: $f"
+          done
+          ls -R ypx-oyin/web3d/audio
+
       - name: APK yig'ish
         working-directory: ypx-oyin/android
         run: gradle --no-daemon assembleRelease 2>&1 | tee ../../build.log; exit ${PIPESTATUS[0]}
@@ -38,6 +49,15 @@ jobs:
         with:
           name: ypx-xodimi-apk
           path: ypx-xodimi.apk
+
+      - name: Ovozlarni repoga saqlash
+        run: |
+          M=ypx-oyin/web3d/audio/manifest.txt
+          [ -f "$M" ] && grep -qv '^#' "$M" || exit 0
+          grep '^#' "$M" > "$M.tmp" && mv "$M.tmp" "$M"
+          git config user.name "ci" && git config user.email "ci@users.noreply.github.com"
+          git add ypx-oyin/web3d/audio
+          git commit -qm "Add downloaded voice lines" && git push origin HEAD:${GITHUB_REF_NAME} || true
 
       # On failure, store the build log on a side branch so it can be read with git.
       - name: Xato logini saqlash
