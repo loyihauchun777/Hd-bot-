@@ -30,8 +30,11 @@ function buildBodyGeometry() {
   const shape = new THREE.Shape();
   poly.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
   shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, { depth: W, bevelEnabled: false, curveSegments: 1 }).toNonIndexed();
-  g.translate(0, 0, -W / 2);
+  const BV = 0.045; // rounded edges
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: W - 2 * BV, bevelEnabled: true, bevelThickness: BV, bevelSize: BV * 0.6, bevelSegments: 3, curveSegments: 1,
+  }).toNonIndexed();
+  g.translate(0, 0, -(W - 2 * BV) / 2);
   const [ua, ub] = fit(poly, 0, 2), [va, vb] = fit(poly, 1, 3);
   const pos = g.attributes.position;
   const buckets = [[], [], [], [], [], []]; // sideL, sideR, top, front, rear, bottom
@@ -40,7 +43,7 @@ function buildBodyGeometry() {
     a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
     n.crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize();
     let k;
-    if (n.z < -0.9) k = 0; else if (n.z > 0.9) k = 1;
+    if (n.z < -0.75) k = 0; else if (n.z > 0.75) k = 1;
     else if (n.y > 0.35) k = 2; else if (n.y < -0.35) k = 5;
     else k = n.x > 0 ? 3 : 4;
     buckets[k].push([a.clone(), b.clone(), c.clone()]);
@@ -76,9 +79,11 @@ export function makeYpxCar() {
   const body = new THREE.Group();
   g.add(body);
   const lam = map => new THREE.MeshLambertMaterial({ map });
+  // glossy car paint
+  const paint = map => new THREE.MeshPhongMaterial({ map, shininess: 90, specular: 0x666666 });
   const shell = new THREE.Mesh(bodyGeo, [
-    lam(tex('ypx_side_l')), lam(tex('ypx_side_r')), lam(tex('ypx_top')),
-    lam(tex('ypx_front')), lam(tex('ypx_rear')), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+    paint(tex('ypx_side_l')), paint(tex('ypx_side_r')), paint(tex('ypx_top')),
+    paint(tex('ypx_front')), paint(tex('ypx_rear')), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
   ]);
   shell.castShadow = true; shell.receiveShadow = true;
   body.add(shell);
@@ -108,7 +113,54 @@ export function makeYpxCar() {
   bar.add(blue, grey, red);
   body.add(bar);
 
+  // light-bar glow
+  const glowTex = radialTexture();
+  const glow = (color, z) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.scale.set(1.3, 1.3, 1); sp.position.set(0, 0.08, z);
+    bar.add(sp); return sp;
+  };
+  const glowBlue = glow(0x3a6bff, seg * 0.9), glowRed = glow(0xff3030, -seg * 0.9);
+
+  // side mirrors
+  const { mirrorX, mirrorY, length: L } = YPX_CAR;
+  const white = new THREE.MeshPhongMaterial({ color: 0xf2f4f6, shininess: 90, specular: 0x666666 });
+  const black = new THREE.MeshLambertMaterial({ color: 0x1b1d22 });
+  for (const s of [1, -1]) {
+    const m = new THREE.Group();
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.1), black); arm.position.z = s * 0.05;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.2), white); head.position.z = s * 0.15;
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.1, 0.17), new THREE.MeshPhongMaterial({ color: 0x8fa9c0, shininess: 120, specular: 0xffffff }));
+    glass.position.set(-0.055, 0, s * 0.15);
+    m.add(arm, head, glass);
+    m.position.set(mirrorX, mirrorY, s * (W / 2 - 0.02));
+    head.castShadow = true;
+    body.add(m);
+  }
+
+  // soft contact shadow under the car
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(L * 1.08, W * 1.45),
+    new THREE.MeshBasicMaterial({ map: radialTexture(true), transparent: true, depthWrite: false, opacity: 0.55, color: 0x000000 }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.012;
+  g.add(shadow);
+
   const signal = new THREE.Object3D(); signal.visible = false; body.add(signal);
-  g.userData = { lights: { red, blue }, wheels, body, signal };
+  g.userData = { lights: { red, blue, glowRed, glowBlue }, wheels, body, signal };
+  g.scale.setScalar(0.9); // match the other cars on the street
   return g;
+}
+
+// radial gradient: soft glow (default) or an elliptical blob for the contact shadow
+let glowCache = null, shadowCache = null;
+function radialTexture(shadow = false) {
+  if (shadow ? shadowCache : glowCache) return shadow ? shadowCache : glowCache;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const c = cv.getContext('2d');
+  const gr = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  if (shadow) { gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); }
+  else { gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); }
+  c.fillStyle = gr; c.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(cv);
+  if (shadow) shadowCache = t; else glowCache = t;
+  return t;
 }

@@ -515,6 +515,8 @@ function frame(now) {
     const on = Math.floor(G.t * 5) % 2 === 0;
     patrol.userData.lights.red.material.color.setHex(on ? 0xff2020 : 0x441010);
     patrol.userData.lights.blue.material.color.setHex(on ? 0x102044 : 0x2050ff);
+    const L = patrol.userData.lights;
+    if (L.glowRed) { L.glowRed.visible = on; L.glowBlue.visible = !on; }
   }
   updateCamera(dt);
   renderer.render(scene, camera);
