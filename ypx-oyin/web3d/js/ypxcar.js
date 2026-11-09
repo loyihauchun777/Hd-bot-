@@ -1,9 +1,7 @@
 // YPX patrol sedan built from the user's drawing: the side silhouette is extruded across the
 // car's width and the drawing's side / top / front / rear views are mapped onto the faces.
 import * as THREE from './three.module.min.js';
-import { YPX_CAR } from './ypxcar_data.js';
 import { YPX_CAR2 } from './ypxcar2_data.js';
-const VARIANTS = { 1: YPX_CAR, 2: YPX_CAR2 };
 
 const loader = new THREE.TextureLoader();
 const texCache = {};
@@ -38,8 +36,20 @@ function buildBodyGeometry(D) {
   }).toNonIndexed();
   g.translate(0, 0, -(W - 2 * BV) / 2);
   const [ua, ub] = fit(poly, 0, 2), [va, vb] = fit(poly, 1, 3);
+  // the drawing's top view has different proportions than its side view: line up
+  // hood end / roof start / roof end / trunk start with a piecewise-linear remap
+  const [fs, ft] = D.topMap || [[0, 1], [0, 1]];
+  const topU = f => {
+    for (let i = 1; i < fs.length; i++) if (f <= fs[i]) return ft[i - 1] + (ft[i] - ft[i - 1]) * (f - fs[i - 1]) / (fs[i] - fs[i - 1]);
+    return 1;
+  };
+  // front/rear faces only cover the nose and the trunk panel: map them to the part of the
+  // front/rear drawing below the hood lettering / rear window
+  const hoodY = Math.max(...poly.filter(p => p[0] > L / 2 - 0.35).map(p => p[1]));
+  const trunkY = Math.max(...poly.filter(p => p[0] < -L / 2 + 0.35).map(p => p[1]));
+  const FRONT_V = 0.66, REAR_V = 0.6; // image heights of the hood line / trunk lid edge
   const pos = g.attributes.position;
-  const buckets = [[], [], [], [], [], []]; // sideL, sideR, top, front, rear, bottom
+  const buckets = [[], [], [], [], [], [], []]; // sideL, sideR, top, front, rear, bottom, glass
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
   for (let i = 0; i < pos.count; i += 3) {
     a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
@@ -48,6 +58,16 @@ function buildBodyGeometry(D) {
     if (n.z < -0.75) k = 0; else if (n.z > 0.75) k = 1;
     else if (n.y > 0.35) k = 2; else if (n.y < -0.35) k = 5;
     else k = n.x > 0 ? 3 : 4;
+    // steep windshield / rear-window faces sit above the nose and trunk panel: the
+    // front/rear drawings have no glass there, so texture them from the top view
+    const cy = (a.y + b.y + c.y) / 3;
+    if ((k === 3 && cy > hoodY + 0.02) || (k === 4 && cy > trunkY + 0.02)) k = 2;
+    // windshield and rear window: real glass between the pillars
+    if (k >= 2 && k <= 4) {
+      const f = (L / 2 - (a.x + b.x + c.x) / 3) / L, cz = Math.abs((a.z + b.z + c.z) / 3);
+      const inWs = f > fs[1] + 0.012 && f < fs[2] - 0.004, inRw = f > fs[3] + 0.006 && f < fs[4] - 0.012;
+      if ((inWs || inRw) && cz < W / 2 * 0.84) k = 6;
+    }
     buckets[k].push([a.clone(), b.clone(), c.clone()]);
   }
   const P = [], U = [], groups = [];
@@ -55,9 +75,9 @@ function buildBodyGeometry(D) {
     switch (k) {
       case 0: return [ua * p.x + ub, va * p.y + vb];                 // left side: drawing as is
       case 1: return [1 - (ua * p.x + ub), va * p.y + vb];           // right side: mirrored drawing (text fixed)
-      case 2: return [(L / 2 - p.x) / L, 0.5 + p.z / W];             // top view, front at the image's left
-      case 3: return [0.5 - p.z / W, Math.min(1, p.y / H)];          // front view
-      case 4: return [0.5 + p.z / W, Math.min(1, p.y / H)];          // rear view
+      case 2: return [topU((L / 2 - p.x) / L), 0.5 + p.z / W];       // top view, front at the image's left
+      case 3: return [0.5 - p.z / W, Math.min(1, p.y / hoodY) * FRONT_V];  // front view: nose, below the hood lettering
+      case 4: return [0.5 + p.z / W, Math.min(1, p.y / trunkY) * REAR_V];  // rear view: trunk panel, below the rear window
       default: return [0, 0];
     }
   };
@@ -74,9 +94,9 @@ function buildBodyGeometry(D) {
   return geo;
 }
 
-export function makeYpxCar(variant = 1) {
-  const D = VARIANTS[variant] || YPX_CAR;
-  const bodyGeo = bodyGeos[variant] || (bodyGeos[variant] = buildBodyGeometry(D));
+export function makeYpxCar() {
+  const D = YPX_CAR2;
+  const bodyGeo = bodyGeos.main || (bodyGeos.main = buildBodyGeometry(D));
   const P = D.prefix || 'ypx';
   const { width: W, wheelR, wheelX, wheelY, barX, roofY } = D;
   const g = new THREE.Group();
@@ -88,6 +108,7 @@ export function makeYpxCar(variant = 1) {
   const shell = new THREE.Mesh(bodyGeo, [
     paint(tex(P + '_side_l')), paint(tex(P + '_side_r')), paint(tex(P + '_top')),
     paint(tex(P + '_front')), paint(tex(P + '_rear')), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+    new THREE.MeshPhongMaterial({ color: 0x1c2733, shininess: 140, specular: 0xbfd4e6 }), // glass
   ]);
   shell.castShadow = true; shell.receiveShadow = true;
   body.add(shell);

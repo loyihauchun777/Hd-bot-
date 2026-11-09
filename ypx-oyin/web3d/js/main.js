@@ -15,6 +15,7 @@ const SAVE_KEY = 'ypx3d_save_v1';
 const defaultSave = () => ({ xp: 0, money: 0, rep: 50, rank: 0, uniform: 'yozgi', car: 'sedan', owned: { uniform: ['yozgi'], car: ['sedan'] }, shifts: 0, best: 0 });
 let save = defaultSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = { ...defaultSave(), ...s }; } catch (e) {}
+if (save.car === 'sedan2') save.car = 'sedan';
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
 // ---------- renderer ----------
@@ -58,7 +59,7 @@ function buildPatrol() {
   const def = SHOP.car.find(c => c.id === save.car) || SHOP.car[0];
   const type = CAR_TYPES.find(t => t.id === def.type);
   // the default patrol sedan is built from the user's YPX drawing
-  patrol = def.ypx ? makeYpxCar(def.ypx) : makeCar(type, { color: 0xf4f6fa, police: true, plate: '01 YPX 777' });
+  patrol = def.ypx ? makeYpxCar() : makeCar(type, { color: 0xf4f6fa, police: true, plate: '01 YPX 777' });
   patrol.position.set(-7.5, 0, ROAD.bayZ);
   scene.add(patrol);
 }
