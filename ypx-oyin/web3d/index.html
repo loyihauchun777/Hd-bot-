@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>YPX xodimi 3D</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- floating radar labels over cars -->
+<div id="labels"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-left">
+    <div id="hudRank"></div>
+    <div id="hudQuota"></div>
+  </div>
+  <div id="hudTime"></div>
+  <div class="hud-right">
+    <div id="hudMoney"></div>
+    <div id="hudRep"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<!-- touch controls -->
+<div id="controls" class="hidden">
+  <div id="joyZone"><div id="joyBase"><div id="joyKnob"></div></div></div>
+  <div id="lookZone"></div>
+  <div id="btns">
+    <button id="btnTalk" class="round talk hidden">💬<span>Gaplashish</span></button>
+    <button id="btnWhistle" class="round">📯<span>Hushtak</span></button>
+    <button id="btnJezl" class="round big">🚓<span>Jezl</span></button>
+  </div>
+  <div id="targetInfo" class="hidden"></div>
+</div>
+
+<!-- main menu -->
+<div id="menu" class="screen">
+  <div class="menu-card">
+    <div class="logo">👮‍♂️ YPX xodimi</div>
+    <div class="sub">Yo‘l patrul xizmati inspektori</div>
+    <div id="menuStats" class="stats"></div>
+    <button id="btnStart" class="primary">Smenani boshlash</button>
+    <div class="row">
+      <button id="btnShop">🛒 Do‘kon</button>
+      <button id="btnHelp">❓ Qanday o‘ynash</button>
+    </div>
+  </div>
+</div>
+
+<!-- help -->
+<div id="help" class="screen hidden">
+  <div class="menu-card scroll">
+    <h2>Qanday o‘ynash</h2>
+    <ul>
+      <li><b>Chap tomon</b> — joystik: inspektorni yurgizish. <b>O‘ng tomonni surish</b> — kamerani burish.</li>
+      <li>Mashinalar ustida radar ko‘rsatgichi chiqadi: tezlik va ko‘zga tashlangan qoidabuzarliklar. Tezlik chegarasi — <b>60 km/soat</b>.</li>
+      <li>Sariq strelka belgilagan mashinani to‘xtatish uchun <b>Jezl</b> tugmasini bosing. Avval <b>Hushtak</b> chalsangiz — qo‘shimcha ball.</li>
+      <li>Mashina cho‘ntakka to‘xtaydi. Yoniga boring va <b>Gaplashish</b>ni bosing.</li>
+      <li>Hujjatlarni tekshiring, kerak bo‘lsa alkotester va ko‘zdan kechirishdan foydalaning, so‘ng <b>Qaror</b> chiqaring.</li>
+      <li>Pora taklif qilinsa — rad eting! Halollik obro‘yingizni oshiradi, pora olish esa ishdan ketishga olib kelishi mumkin.</li>
+      <li>Sababsiz to‘xtatish, noto‘g‘ri ayblov va qoidabuzarni o‘tkazib yuborish — obro‘ni pasaytiradi.</li>
+    </ul>
+    <button id="btnHelpBack" class="primary">Orqaga</button>
+  </div>
+</div>
+
+<!-- shop -->
+<div id="shop" class="screen hidden">
+  <div class="menu-card scroll wide">
+    <h2>🛒 Do‘kon <span id="shopMoney" class="pill"></span></h2>
+    <h3>Forma</h3><div id="shopUniform" class="shop-grid"></div>
+    <h3>Patrul mashinasi</h3><div id="shopCar" class="shop-grid"></div>
+    <button id="btnShopBack" class="primary">Orqaga</button>
+  </div>
+</div>
+
+<!-- inspection panel -->
+<div id="inspect" class="hidden">
+  <div class="insp-top">
+    <canvas id="driverFace" width="120" height="140"></canvas>
+    <div class="insp-info">
+      <div id="driverName"></div>
+      <div id="driverCar" class="muted"></div>
+      <div id="bubble"></div>
+    </div>
+  </div>
+  <div id="inspBody"></div>
+  <div id="inspTabs">
+    <button data-tab="docs">📄 Hujjatlar</button>
+    <button data-tab="alco">🍺 Alkotester</button>
+    <button data-tab="car">🔧 Ko‘zdan kechirish</button>
+    <button data-tab="verdict" class="primary">⚖️ Qaror</button>
+  </div>
+</div>
+
+<!-- bribe popup -->
+<div id="bribe" class="screen hidden">
+  <div class="menu-card">
+    <div class="logo">💵</div>
+    <p id="bribeText"></p>
+    <button id="btnBribeNo" class="primary">✋ Rad etish</button>
+    <button id="btnBribeYes" class="danger">Qabul qilish</button>
+  </div>
+</div>
+
+<!-- shift report -->
+<div id="report" class="screen hidden">
+  <div class="menu-card scroll">
+    <h2 id="reportTitle">Smena yakuni</h2>
+    <div id="reportBody"></div>
+    <button id="btnReportOk" class="primary">Davom etish</button>
+  </div>
+</div>
+
+<!-- rotate hint -->
+<div id="rotate">📱↻<br>Telefonni gorizontal holatga burang</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

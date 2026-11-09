@@ -10,8 +10,8 @@ android {
         applicationId 'uz.ypx.oyin'
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '2.0-3d'
     }
 
     buildTypes {
@@ -22,13 +22,17 @@ android {
         }
     }
 
-    // The game itself lives in ../../web and is bundled as app assets.
+    // The game itself lives in ../../web3d and is bundled as app assets.
     sourceSets {
-        main.assets.srcDirs = ['../../web']
+        main.assets.srcDirs = ['../../web3d']
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
 }

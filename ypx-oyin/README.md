@@ -1,26 +1,31 @@
-# YPX xodimi — o‘zbekcha mobil o‘yin
+# YPX xodimi 3D — o‘zbekcha mobil o‘yin
 
-Siz yo‘l patrul xizmati (YPX) inspektorisiz. Yo‘lni kuzatib, qoidabuzar mashinaga bosing,
-so‘ng qanday qoida buzilganini tanlang.
+Siz yo‘l patrul xizmati (YPX) inspektorisiz. O‘zbek shahri ko‘chasidagi postda turib, qoidabuzarlarni
+jezl bilan to‘xtatasiz, hujjatlarni tekshirasiz va qaror chiqarasiz.
 
-## Darajalar
-1. Tezlikni oshirish (belgidagi chegara va mashina ustidagi radar raqami)
-2. + Rul ortida telefonda gaplashish 📱
-3. + Xavfsizlik kamarini taqmaslik 🔓
-4. + Svetoforning qizil chirog‘iga o‘tish 🚦
-5. + Tezlik chegarasi o‘zgarib turadi; keyin harakat tezlashadi
+## Boshqaruv (telefon gorizontal holatda)
+- Chap tomon — joystik (yurish). O‘ng tomonni surish — kamerani burish.
+- **Jezl** — sariq strelka belgilagan mashinani to‘xtatish. Oldin **Hushtak** chalsangiz — +10 ball.
+- **Gaplashish** — to‘xtatilgan mashina yonida paydo bo‘ladi.
+- Kompyuterda: WASD — yurish, sichqoncha — kamera, J — jezl, H — hushtak, E — gaplashish.
 
-Qoidani buzmagan haydovchini to‘xtatish yoki qoidabuzarni o‘tkazib yuborish — bitta yurak (jami 3 ta).
+## Tekshiruv
+- 📄 Hujjatlar: guvohnoma (muddati, rasm), texpasport (raqam), sug‘urta (muddati). Diqqat: mashina qarindoshiga tegishli bo‘lishi qoidabuzarlik emas.
+- 🍺 Alkotester: mast haydovchini aniqlash (chegara 0.30 ‰).
+- 🔧 Ko‘zdan kechirish: singan fara, yeyilgan shina.
+- 💵 Pora taklif qilinsa — rad eting (halollik bonusi). Olsangiz, ichki xavfsizlik xizmati ushlashi mumkin.
+- ⚖️ Qaror: jarima / ogohlantirish / boshqarishdan chetlatish / qo‘yib yuborish.
+
+## Rivojlanish
+Unvonlar: Serjant → Leytenant → Kapitan (tajriba va obro‘ga qarab). Maoshga do‘kondan forma va patrul mashinasi olinadi.
+Jarimalar va pullar — shartli o‘yin qiymatlari, haqiqiy qonun summalari emas.
 
 ## Tuzilishi
-- `web/index.html` — o‘yinning o‘zi (HTML5 canvas, internetsiz ishlaydi). Brauzerda ochib sinash mumkin.
+- `web3d/` — o‘yin (Three.js, internetsiz ishlaydi). `web3d/audio/<ovoz>/<id>.mp3` — o‘zbekcha ovozli dialoglar.
 - `android/` — o‘yinni WebView ichida ochadigan Android ilova.
 
+Kompyuterda sinash: `cd web3d && python3 -m http.server` → http://localhost:8000
+
 ## APK olish
-GitHub → **Actions** → **YPX xodimi APK** → oxirgi muvaffaqiyatli ishga tushirish →
-**Artifacts** bo‘limidan `ypx-xodimi-apk` ni yuklab oling (ichida `ypx-xodimi.apk`).
-Telefonda "Noma’lum manbalardan o‘rnatish"ga ruxsat bering va o‘rnating.
-
-Lokal yig‘ish (Android SDK kerak): `cd android && gradle assembleRelease`.
-
-APK debug kalit bilan imzolangan — Play Marketga joylash uchun o‘z keystore'ingiz bilan imzolang.
+GitHub → **Actions** → **YPX xodimi APK** → oxirgi muvaffaqiyatli ishga tushirish → **Artifacts** → `ypx-xodimi-apk`.
+APK test kaliti bilan imzolangan; Play Market uchun o‘z keystore'ingiz bilan imzolang.

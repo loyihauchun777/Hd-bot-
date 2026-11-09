@@ -1,0 +1,274 @@
+// Inspection of a stopped car: dialogue, documents, breathalyser, vehicle check, bribe, verdict.
+import { VIOLATIONS, INSPECTOR_LINES, DRIVER_LINES, VOICES } from './data.js';
+import { drawFace } from './models.js';
+import { playVoice, stopVoice, sfx } from './audio.js';
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const ROAD_LINE = { tezlik: 'I3', kamar: 'I4', telefon: 'I5', qizil: 'I6', tonirovka: 'I7', raqamsiz: 'I16' };
+const EXCUSE = { tezlik: ['D3', 'D4'], kamar: ['D5'], telefon: ['D6'], qizil: ['D7'], tonirovka: ['D15'], raqamsiz: ['D13'] };
+
+const ACTIONS = [
+  ['jarima', '📝 Jarima yozish'],
+  ['ogoh', '⚠️ Ogohlantirish'],
+  ['chetlatish', '🚫 Boshqarishdan chetlatish (evakuator)'],
+  ['qoyib', '✅ Qo‘yib yuborish'],
+];
+
+export class Inspection {
+  constructor(game) {
+    this.game = game;
+    this.active = false;
+    document.querySelectorAll('#inspTabs button').forEach(b => b.addEventListener('click', () => { sfx.click(); this.tab(b.dataset.tab); }));
+    $('btnBribeNo').onclick = () => this.bribeAnswer(false);
+    $('btnBribeYes').onclick = () => this.bribeAnswer(true);
+  }
+
+  // ---------- dialogue ----------
+  async say(who, id) {
+    const p = this.car.prof;
+    const text = who === 'i' ? INSPECTOR_LINES[id] : DRIVER_LINES[id];
+    const name = who === 'i' ? 'Siz' : p.name.split(' ')[0];
+    $('bubble').innerHTML = `<span class="who">${name}:</span>${text}`;
+    const voice = who === 'i' ? VOICES.inspector : VOICES.drivers[p.voice];
+    const token = ++this.sayToken;
+    await playVoice(voice, id, text);
+    return token === this.sayToken;
+  }
+
+  async script(lines) {
+    const token = ++this.scriptToken;
+    for (const [who, id] of lines) {
+      if (!this.active || token !== this.scriptToken) return;
+      await this.say(who, id);
+      await sleep(150);
+    }
+  }
+
+  // ---------- open / close ----------
+  open(car) {
+    this.car = car;
+    this.active = true;
+    this.flags = new Set();
+    this.alco = null;
+    this.bribe = null; // null = not offered yet, 'refused', 'taken'
+    this.action = null;
+    this.ownerLineSaid = false;
+    this.sayToken = 0; this.scriptToken = 0;
+    const p = car.prof;
+    drawFace($('driverFace'), p.face);
+    $('driverName').textContent = p.name;
+    $('driverCar').textContent = `${p.type.name}, ${p.colorName} · ${p.noPlate ? 'raqamsiz' : p.plate}`;
+    $('inspect').classList.remove('hidden');
+    this.tab('docs');
+    const first = p.road[0];
+    const lines = [['i', 'I1'], ['d', 'D1'], ['d', 'D2']];
+    if (first) {
+      lines.push(['i', ROAD_LINE[first]]);
+      const ex = EXCUSE[first];
+      lines.push(['d', ex[Math.floor(Math.random() * ex.length)]]);
+    } else {
+      lines.push(['i', 'I2']);
+    }
+    this.script(lines);
+  }
+
+  close() {
+    this.active = false;
+    stopVoice();
+    $('inspect').classList.add('hidden');
+    $('bribe').classList.add('hidden');
+    this.game.setCamMode('follow');
+  }
+
+  tab(name) {
+    if (!this.active) return;
+    this.curTab = name;
+    document.querySelectorAll('#inspTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    this.game.setCamMode(name === 'car' ? 'orbit' : 'talk', this.car);
+    if (name === 'verdict' && this.car.prof.bribe && this.bribe === null) { this.offerBribe(); return; }
+    this['render_' + name]();
+  }
+
+  flagRow(key, label, light = false) {
+    return `<label class="flag"${light ? '' : ''}><input type="checkbox" data-flag="${key}" ${this.flags.has(key) ? 'checked' : ''}> ${label}</label>`;
+  }
+
+  bindFlags() {
+    $('inspBody').querySelectorAll('input[data-flag]').forEach(inp => {
+      inp.onchange = () => { sfx.click(); inp.checked ? this.flags.add(inp.dataset.flag) : this.flags.delete(inp.dataset.flag); };
+    });
+  }
+
+  // ---------- documents ----------
+  render_docs() {
+    const p = this.car.prof, d = p.docs;
+    const today = new Date();
+    const t = String(today.getDate()).padStart(2, '0') + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + today.getFullYear();
+    $('inspBody').innerHTML = `
+      <div class="today">📅 Bugun: <b>${t}</b> · 🚗 Mashinadagi raqam: <b>${p.noPlate ? 'YO‘Q' : p.plate}</b></div>
+      <div class="doc"><canvas id="licPhoto" width="96" height="112"></canvas>
+        <h4>Haydovchilik guvohnomasi</h4>
+        <div class="f"><span>F.I.Sh.</span><b>${d.licenseName}</b></div>
+        <div class="f"><span>Toifa</span><b>B</b></div>
+        <div class="f"><span>Amal qiladi</span><b>${d.licenseUntil} gacha</b></div>
+        <div style="clear:both"></div>
+        ${this.flagRow('guvohnoma', 'Muddati o‘tgan')}
+        ${this.flagRow('rasm', 'Rasm haydovchiga o‘xshamaydi')}
+      </div>
+      <div class="doc">
+        <h4>Texnik pasport</h4>
+        <div class="f"><span>Davlat raqami</span><b>${d.techPlate}</b></div>
+        <div class="f"><span>Rusumi</span><b>${d.techModel}</b></div>
+        <div class="f"><span>Egasi</span><b>${d.techOwner}</b></div>
+        ${this.flagRow('texraqam', 'Raqam mashinaga mos emas')}
+        ${this.flagRow('egasi', 'Egasi boshqa odam')}
+      </div>
+      <div class="doc">
+        <h4>Sug‘urta polisi</h4>
+        <div class="f"><span>Avtomobil</span><b>${d.techPlate}</b></div>
+        <div class="f"><span>Amal qiladi</span><b>${d.insuranceUntil} gacha</b></div>
+        ${this.flagRow('sugurta', 'Muddati o‘tgan')}
+      </div>`;
+    drawFace($('licPhoto'), { ...d.licensePhoto, bg: '#dde6f0', drunk: false });
+    this.bindFlags();
+    if (d.techOwner !== d.licenseName && !this.ownerLineSaid) { this.ownerLineSaid = true; this.script([['d', 'D14']]); }
+  }
+
+  // ---------- breathalyser ----------
+  render_alco() {
+    const p = this.car.prof;
+    const cue = p.drunk ? '🍺 Haydovchidan spirtli ichimlik hidi kelmoqda, gapi chalkash.' : (Math.random() < 0.3 ? '😟 Haydovchi biroz hayajonlangan.' : 'Haydovchi o‘zini odatdagidek tutmoqda.');
+    $('inspBody').innerHTML = `
+      <p>${this.alco ? '' : cue}</p>
+      <div class="alco-val" id="alcoVal">${this.alco != null ? this.alco.toFixed(2) + ' ‰' : '—.— ‰'}</div>
+      <div class="meter"><div id="alcoBar" style="width:${this.alco != null ? Math.min(100, this.alco * 70) : 0}%"></div></div>
+      <p class="muted">Ruxsat etilgan chegara: 0.30 ‰ gacha</p>
+      <button id="btnBlow" class="primary" style="width:100%" ${this.alco != null ? 'disabled' : ''}>Alkotesterga puflashni so‘rash</button>
+      ${this.flagRow('mast', 'Mast holatda')}`;
+    this.bindFlags();
+    $('btnBlow').onclick = async () => {
+      $('btnBlow').disabled = true;
+      await this.script([['i', 'I8'], ['d', p.drunk ? 'D11' : 'D10']]);
+      if (!this.active || this.curTab !== 'alco') return;
+      const val = p.drunk ? 0.55 + Math.random() * 0.9 : Math.random() * 0.12;
+      for (let i = 0; i <= 25; i++) {
+        if (!this.active || this.curTab !== 'alco') return;
+        const v = val * (i / 25);
+        $('alcoVal').textContent = v.toFixed(2) + ' ‰';
+        $('alcoBar').style.width = Math.min(100, v * 70) + '%';
+        if (i % 5 === 0) sfx.beep();
+        await sleep(90);
+      }
+      this.alco = val;
+      $('alcoVal').style.color = val > 0.3 ? '#ff6b6b' : '#7CFFB2';
+    };
+  }
+
+  // ---------- vehicle check ----------
+  render_car() {
+    $('inspBody').innerHTML = `
+      <p>🔍 Mashinani har tomondan ko‘ring (chap tomonda kamerani surish mumkin). Nosozlikni topsangiz belgilang.</p>
+      ${this.flagRow('fara', 'Faralardan biri singan / ishlamaydi')}
+      ${this.flagRow('shina', 'Shinalardan biri yeyilgan')}
+      <p class="muted">Ko‘zga tashlanadigan qoidabuzarliklar (tonirovka, raqam yo‘qligi) radar orqali avtomatik qayd etilgan.</p>`;
+    this.bindFlags();
+    if (!this.carLineSaid) { this.carLineSaid = true; this.script([['i', 'I9']]); }
+  }
+
+  // ---------- bribe ----------
+  offerBribe() {
+    this.script([['d', 'D8']]);
+    const sum = (Math.floor(Math.random() * 5) + 2) * 100;
+    this.bribeSum = sum;
+    $('bribeText').innerHTML = `Haydovchi hujjatlar orasiga <b>${sum} ming so‘m</b> qo‘yib uzatdi:<br><i>«Inspektor aka, balki o‘zimizcha kelishib olarmiz?»</i>`;
+    $('bribe').classList.remove('hidden');
+  }
+
+  bribeAnswer(take) {
+    $('bribe').classList.add('hidden');
+    if (take) {
+      this.bribe = 'taken';
+      sfx.cash();
+      this.finish('qoyib', true);
+    } else {
+      this.bribe = 'refused';
+      sfx.good();
+      this.game.toast('Pora rad etildi! Halollik +', 'good');
+      this.script([['i', 'I10']]);
+      this.render_verdict();
+    }
+  }
+
+  // ---------- verdict ----------
+  render_verdict() {
+    const p = this.car.prof;
+    let list = p.road.map(k => `<div class="road-v">${VIOLATIONS[k].icon || '•'} ${VIOLATIONS[k].name} <span class="muted">(radar)</span></div>`).join('');
+    for (const k of this.flags) {
+      if (k === 'egasi') list += `<div class="road-v">• Mashina egasi boshqa odam</div>`;
+      else list += `<div class="road-v">• ${VIOLATIONS[k].name}</div>`;
+    }
+    if (this.bribe === 'refused') list += `<div class="road-v">💵 ${VIOLATIONS.pora.name}</div>`;
+    if (!list) list = '<p class="muted">Qoidabuzarlik aniqlanmadi.</p>';
+    $('inspBody').innerHTML = `<h4 style="margin:0 0 6px">Aniqlangan qoidabuzarliklar:</h4>${list}
+      <h4 style="margin:12px 0 4px">Qaror:</h4>
+      ${ACTIONS.map(([k, n]) => `<button class="choice ${this.action === k ? 'sel' : ''}" data-act="${k}">${n}</button>`).join('')}
+      <button id="btnConfirm" class="primary" style="width:100%;margin-top:10px" ${this.action ? '' : 'disabled'}>Tasdiqlash</button>`;
+    $('inspBody').querySelectorAll('[data-act]').forEach(b => b.onclick = () => { sfx.click(); this.action = b.dataset.act; this.render_verdict(); });
+    $('btnConfirm').onclick = () => this.finish(this.action, false);
+  }
+
+  // ---------- scoring ----------
+  evaluate(action) {
+    const p = this.car.prof;
+    const truth = new Set([...p.road, ...p.hidden]);
+    if (this.bribe === 'refused') truth.add('pora');
+    let points = 0, rep = 0;
+    const notes = [];
+    for (const k of this.flags) {
+      if (truth.has(k)) { points += 40; }
+      else { points -= 30; rep -= 3; notes.push('Noto‘g‘ri ayblov: ' + (k === 'egasi' ? 'egasi boshqa odam — bu qoidabuzarlik emas (ishonchnoma bor)' : VIOLATIONS[k].name)); }
+    }
+    for (const k of p.hidden) if (!this.flags.has(k)) { points -= 15; notes.push('E’tibordan chetda qoldi: ' + VIOLATIONS[k].name); }
+    let ok;
+    if (p.drunk) ok = ['chetlatish'];
+    else if (!truth.size) ok = ['qoyib'];
+    else {
+      const allMinor = [...truth].every(k => VIOLATIONS[k].minor);
+      ok = allMinor && truth.size === 1 ? ['ogoh', 'jarima'] : ['jarima'];
+    }
+    const correct = ok.includes(action);
+    if (correct) { points += 60; rep += 2; } else { points -= 60; rep -= 5; notes.push('Qaror noto‘g‘ri. To‘g‘risi: ' + ok.map(a => ACTIONS.find(x => x[0] === a)[1]).join(' yoki ')); }
+    if (this.bribe === 'refused') { points += 50; rep += 10; }
+    return { points, rep, correct, notes };
+  }
+
+  async finish(action, tookBribe) {
+    const p = this.car.prof;
+    let res;
+    if (tookBribe) {
+      res = { points: 0, rep: -25, correct: false, notes: ['Pora olindi. Ichki xavfsizlik xizmati kuzatmoqda...'], bribe: this.bribeSum };
+    } else {
+      res = this.evaluate(action);
+      const lines = {
+        jarima: [['i', 'I11'], ['d', 'D9']],
+        ogoh: [['i', 'I12'], ['d', 'D9']],
+        chetlatish: [['i', 'I13']],
+        qoyib: [['i', 'I14'], ['d', 'D12']],
+      }[action];
+      $('inspBody').innerHTML = `<h3 style="margin-top:0">${res.correct ? '✅ To‘g‘ri qaror' : '❌ Xato bor'}</h3>
+        <p><b>${res.points >= 0 ? '+' : ''}${res.points}</b> ball · obro‘ ${res.rep >= 0 ? '+' : ''}${res.rep}</p>
+        ${res.notes.map(n => `<p class="muted">• ${n}</p>`).join('')}`;
+      document.querySelectorAll('#inspTabs button').forEach(b => b.disabled = true);
+      res.correct ? sfx.good() : sfx.bad();
+      await this.script(lines);
+      await sleep(600);
+      document.querySelectorAll('#inspTabs button').forEach(b => b.disabled = false);
+    }
+    res.action = action;
+    res.drunk = p.drunk;
+    this.close();
+    this.game.inspectionDone(this.car, res);
+  }
+}
