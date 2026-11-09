@@ -1,3 +1,4 @@
 # <file under web3d/audio> <download url>
 # Signed ElevenLabs links expire after a few hours; the APK workflow downloads them,
 # commits the mp3 files and empties this list.
+d1/D1.mp3 https://elevenlabsusercontent.com/database/workspace/4bb06eabc86a445ebeaaff944fad84f4/content_generation/vbXdlRZzU1jqMgIQxbwp/0x0kGekzwlb0tJzIlLnO/content.mp3?Expires=1794261600&KeyName=assets-cdn-key-1&Signature=0zXmPDWZyvqWShsOQOByMnGbKUo=
