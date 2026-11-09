@@ -52,7 +52,6 @@ export const INSPECTOR_LINES = {
   I12: 'Bu safar ogohlantirish bilan cheklanaman. Ehtiyot bo‘ling.',
   I13: 'Siz mast holatdasiz. Transport vositasini boshqarishdan chetlatilasiz.',
   I14: 'Hammasi joyida. Yo‘lingiz bexatar bo‘lsin!',
-  I15: 'Hujjatingizda muammo bor.',
   I16: 'Mashinangizda davlat raqami belgisi yo‘q.',
 };
 
