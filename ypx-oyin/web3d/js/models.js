@@ -91,9 +91,10 @@ export function animateOfficer(officer, t, speed, pose) {
   const sw = Math.sin(t * 9) * 0.6 * s;
   p.legL.rotation.x = sw; p.legR.rotation.x = -sw;
   p.armL.rotation.x = -sw * 0.8;
+  p.armL.rotation.z = 0;
   p.torso.position.y = 0.92 + Math.abs(Math.sin(t * 9)) * 0.04 * s;
   if (pose === 'jezl') { p.armR.rotation.x = -2.6; p.armR.rotation.z = 0.2; }
-  else if (pose === 'whistle') { p.armR.rotation.x = -2.1; p.armR.rotation.z = 0.6; }
+  else if (pose === 'whistle') { p.armR.rotation.x = -2.6; p.armR.rotation.z = 0.2; p.armL.rotation.x = -2.2; p.armL.rotation.z = -0.5; }
   else { p.armR.rotation.x = sw * 0.8; p.armR.rotation.z = 0; }
 }
 

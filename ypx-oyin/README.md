@@ -5,9 +5,9 @@ jezl bilan to‘xtatasiz, hujjatlarni tekshirasiz va qaror chiqarasiz.
 
 ## Boshqaruv (telefon gorizontal holatda)
 - Chap tomon — joystik (yurish). O‘ng tomonni surish — kamerani burish.
-- **Jezl** — sariq strelka belgilagan mashinani to‘xtatish. Oldin **Hushtak** chalsangiz — +10 ball.
+- **Hushtak** — sariq strelka belgilagan mashinani to‘xtatish.
 - **Gaplashish** — to‘xtatilgan mashina yonida paydo bo‘ladi.
-- Kompyuterda: WASD — yurish, sichqoncha — kamera, J — jezl, H — hushtak, E — gaplashish.
+- Kompyuterda: WASD — yurish, sichqoncha — kamera, H — hushtak, E — gaplashish.
 
 ## Tekshiruv
 - 📄 Hujjatlar: guvohnoma (muddati, rasm), texpasport (raqam), sug‘urta (muddati). Diqqat: mashina qarindoshiga tegishli bo‘lishi qoidabuzarlik emas.

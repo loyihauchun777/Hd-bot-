@@ -76,7 +76,6 @@ const G = {
   target: null,
   current: null, // car being stopped / inspected
   pose: null, poseT: 0,
-  lastWhistle: -99,
 };
 
 function newShift() {
@@ -180,7 +179,6 @@ window.addEventListener('mouseup', () => { mouseDown = false; });
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (G.mode !== 'play') return;
-  if (e.code === 'KeyJ') doJezl();
   if (e.code === 'KeyH') doWhistle();
   if (e.code === 'KeyE') doTalk();
 });
@@ -191,39 +189,18 @@ function bindBtn(id, fn) {
   b.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); fn(); }, { passive: false });
   b.addEventListener('click', fn);
 }
-bindBtn('btnJezl', () => doJezl());
 bindBtn('btnWhistle', () => doWhistle());
 bindBtn('btnTalk', () => doTalk());
 
 // ---------- actions ----------
+// The whistle alone stops the car marked by the yellow arrow.
 function doWhistle() {
   if (G.mode !== 'play') return;
   sfx.unlock(); sfx.whistle();
-  G.lastWhistle = G.t;
-  G.pose = 'whistle'; G.poseT = 0.8;
-  // drivers approaching the post notice the officer for a few seconds
-  const px = officer.position.x;
-  let n = 0;
-  for (const c of traffic.cars) {
-    if (c.lane > 1 || c.state !== 'drive' || c.x > px + 2 || c.x < px - 60) continue;
-    c.noticedUntil = G.t + 6; n++;
-  }
-  if (n) toast('Hushtak! Haydovchilar sizga qaradi — endi jezl ko‘rsating', 'info');
-}
-
-function doJezl() {
-  if (G.mode !== 'play') return;
-  sfx.unlock();
-  G.pose = 'jezl'; G.poseT = 1.2;
+  G.pose = 'whistle'; G.poseT = 1.0;
   if (G.current) { toast('Avval to‘xtatilgan mashinani tekshiring', 'info'); return; }
   const car = G.target;
   if (!car) { toast('Yaqinda to‘xtatsa bo‘ladigan mashina yo‘q', 'info'); return; }
-  // without a whistle first the driver often doesn't notice the baton
-  if (!(car.noticedUntil > G.t) && (car.ignoredJezl || Math.random() < 0.7)) {
-    car.ignoredJezl = true;
-    toast('Haydovchi sezmadi! Avval hushtak chaling', 'bad');
-    return;
-  }
   if (!traffic.pullOver(car, Math.max(officer.position.x + 6, ROAD.bayFrom + 16))) { toast('Juda yaqin — haydovchi ulgurmadi', 'bad'); return; }
   G.current = car;
   car.counted = true;
@@ -394,8 +371,7 @@ function updateLabels() {
       if (!el) { el = document.createElement('div'); el.className = 'lbl'; $('labels').appendChild(el); labelEls.set(c, el); }
       const kmh = Math.round(c.v * 3.6);
       const icons = c.prof.road.filter(k => k !== 'tezlik').map(k => ({ kamar: '🔓', telefon: '📱', qizil: '🚦', tonirovka: '🕶️', raqamsiz: '🚫' }[k])).join('');
-      const ear = c.noticedUntil > G.t ? '👀' : '';
-      const html = `${kmh} km/soat${icons || ear ? `<span class="ic">${icons}${ear}</span>` : ''}`;
+      const html = `${kmh} km/soat${icons ? `<span class="ic">${icons}</span>` : ''}`;
       if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
       el.classList.toggle('target', c === G.target);
       el.style.left = sx + 'px';
@@ -550,4 +526,4 @@ camera.position.set(-3, 9, 29);
 requestAnimationFrame(frame);
 
 // test hook (used by automated browser tests)
-window.__ypx = { G, traffic, save, officer: () => officer, doJezl, doTalk, inspection };
+window.__ypx = { G, traffic, save, officer: () => officer, doWhistle, doTalk, inspection };
