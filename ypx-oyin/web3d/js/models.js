@@ -377,9 +377,13 @@ export function makeSpeedSign(limit) {
   c.strokeStyle = '#d42a2a'; c.lineWidth = 14; c.beginPath(); c.arc(64, 64, 52, 0, 7); c.stroke();
   c.fillStyle = '#111'; c.font = 'bold 54px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(limit, 64, 68);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+  const s = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20), new THREE.MeshBasicMaterial({ map: tex }));
   s.position.y = 2.7;
   g.add(s);
+  // plain metal back so the sign never reads mirrored from behind
+  const back = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20), mat(0x8a8f96));
+  back.position.set(0, 2.7, -0.01); back.rotation.y = Math.PI;
+  g.add(back);
   return g;
 }
 

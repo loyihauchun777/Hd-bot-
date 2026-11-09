@@ -201,6 +201,14 @@ function doWhistle() {
   sfx.unlock(); sfx.whistle();
   G.lastWhistle = G.t;
   G.pose = 'whistle'; G.poseT = 0.8;
+  // drivers approaching the post notice the officer for a few seconds
+  const px = officer.position.x;
+  let n = 0;
+  for (const c of traffic.cars) {
+    if (c.lane > 1 || c.state !== 'drive' || c.x > px + 2 || c.x < px - 60) continue;
+    c.noticedUntil = G.t + 6; n++;
+  }
+  if (n) toast('Hushtak! Haydovchilar sizga qaradi — endi jezl ko‘rsating', 'info');
 }
 
 function doJezl() {
@@ -210,11 +218,16 @@ function doJezl() {
   if (G.current) { toast('Avval to‘xtatilgan mashinani tekshiring', 'info'); return; }
   const car = G.target;
   if (!car) { toast('Yaqinda to‘xtatsa bo‘ladigan mashina yo‘q', 'info'); return; }
+  // without a whistle first the driver often doesn't notice the baton
+  if (!(car.noticedUntil > G.t) && (car.ignoredJezl || Math.random() < 0.7)) {
+    car.ignoredJezl = true;
+    toast('Haydovchi sezmadi! Avval hushtak chaling', 'bad');
+    return;
+  }
   if (!traffic.pullOver(car, Math.max(officer.position.x + 6, ROAD.bayFrom + 16))) { toast('Juda yaqin — haydovchi ulgurmadi', 'bad'); return; }
   G.current = car;
   car.counted = true;
   const s = G.shift;
-  if (G.t - G.lastWhistle < 4) { s.points += 10; toast('Hushtak + jezl: protokol bo‘yicha! +10', 'good'); }
   if (!car.prof.road.length) {
     s.rep -= 5; s.unjust++;
     setTimeout(() => toast('Sababsiz to‘xtatish! Obro‘ −5', 'bad'), 900);
@@ -366,21 +379,27 @@ function updateLabels() {
   const seen = new Set();
   if (G.mode === 'play') {
     const px = officer.position.x;
-    for (const c of traffic.cars) {
-      if (c.lane > 1 || c.state !== 'drive') continue;
-      if (c.x < px - 60 || c.x > px + 12) continue;
+    const cands = traffic.cars.filter(c => c.lane <= 1 && c.state === 'drive' && c.x > px - 60 && c.x < px + 12)
+      .sort((a, b) => (b === G.target) - (a === G.target) || Math.abs(a.x - px) - Math.abs(b.x - px));
+    const placed = [];
+    for (const c of cands) {
       tmpV.set(c.x, c.prof.type.h + 0.7, c.z).project(camera);
       if (tmpV.z > 1 || Math.abs(tmpV.x) > 1.1 || Math.abs(tmpV.y) > 1.1) continue;
+      const sx = (tmpV.x + 1) / 2 * window.innerWidth, sy = (1 - tmpV.y) / 2 * window.innerHeight;
+      // skip labels that would overlap one already shown (nearer cars win)
+      if (placed.some(p => Math.abs(p.x - sx) < 118 && Math.abs(p.y - sy) < 26)) continue;
+      placed.push({ x: sx, y: sy });
       seen.add(c);
       let el = labelEls.get(c);
       if (!el) { el = document.createElement('div'); el.className = 'lbl'; $('labels').appendChild(el); labelEls.set(c, el); }
       const kmh = Math.round(c.v * 3.6);
       const icons = c.prof.road.filter(k => k !== 'tezlik').map(k => ({ kamar: '🔓', telefon: '📱', qizil: '🚦', tonirovka: '🕶️', raqamsiz: '🚫' }[k])).join('');
-      const html = `${kmh} km/soat${icons ? `<span class="ic">${icons}</span>` : ''}`;
+      const ear = c.noticedUntil > G.t ? '👀' : '';
+      const html = `${kmh} km/soat${icons || ear ? `<span class="ic">${icons}${ear}</span>` : ''}`;
       if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
       el.classList.toggle('target', c === G.target);
-      el.style.left = ((tmpV.x + 1) / 2 * window.innerWidth) + 'px';
-      el.style.top = ((1 - tmpV.y) / 2 * window.innerHeight) + 'px';
+      el.style.left = sx + 'px';
+      el.style.top = sy + 'px';
     }
   }
   for (const [c, el] of labelEls) if (!seen.has(c)) { el.remove(); labelEls.delete(c); }

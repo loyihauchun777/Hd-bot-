@@ -1,10 +1,24 @@
 // Inspection of a stopped car: dialogue, documents, breathalyser, vehicle check, bribe, verdict.
-import { VIOLATIONS, INSPECTOR_LINES, DRIVER_LINES, VOICES } from './data.js';
+import { VIOLATIONS, INSPECTOR_LINES, DRIVER_LINES, VOICES, CAR_TYPES, CAR_COLORS, FIRST_NAMES, LAST_NAMES } from './data.js';
 import { drawFace } from './models.js';
 import { playVoice, stopVoice, sfx } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+// "dd.mm.yyyy" -> whole days from today (negative = in the past)
+function daysFromToday(str) {
+  const [d, m, y] = str.split('.').map(Number);
+  const t = new Date(); t.setHours(12, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d, 12) - t) / 86400000);
+}
+function daysText(str) {
+  const n = daysFromToday(str);
+  if (n > 0) return `${n} kun qoldi`;
+  if (n < 0) return `${-n} kun oldin tugagan`;
+  return 'bugun tugaydi';
+}
 
 const ROAD_LINE = { tezlik: 'I3', kamar: 'I4', telefon: 'I5', qizil: 'I6', tonirovka: 'I7', raqamsiz: 'I16' };
 const EXCUSE = { tezlik: ['D3', 'D4'], kamar: ['D5'], telefon: ['D6'], qizil: ['D7'], tonirovka: ['D15'], raqamsiz: ['D13'] };
@@ -55,6 +69,8 @@ export class Inspection {
     this.bribe = null; // null = not offered yet, 'refused', 'taken'
     this.action = null;
     this.ownerLineSaid = false;
+    this.tabletLoaded = false;
+    this.otherCar = null;
     this.sayToken = 0; this.scriptToken = 0;
     const p = car.prof;
     drawFace($('driverFace'), p.face);
@@ -134,6 +150,58 @@ export class Inspection {
     drawFace($('licPhoto'), { ...d.licensePhoto, bg: '#dde6f0', drunk: false });
     this.bindFlags();
     if (d.techOwner !== d.licenseName && !this.ownerLineSaid) { this.ownerLineSaid = true; this.script([['d', 'D14']]); }
+  }
+
+  // ---------- tablet: compare documents with the YPX database ----------
+  async render_tablet() {
+    const p = this.car.prof, d = p.docs;
+    if (!this.tabletLoaded) {
+      $('inspBody').innerHTML = `<div class="tablet"><div class="loading">🔎 YPX bazasidan qidirilmoqda...<br><br>${p.noPlate ? 'texpasport' : p.plate} · ${d.licenseName}</div></div>`;
+      sfx.beep();
+      await sleep(1100);
+      if (!this.active || this.curTab !== 'tablet') return;
+      this.tabletLoaded = true;
+    }
+    const today = new Date();
+    const t = String(today.getDate()).padStart(2, '0') + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + today.getFullYear();
+    // database answer for the plate actually mounted on the car
+    let plateHit;
+    if (p.noPlate) plateHit = '— (mashinada raqam yo‘q)';
+    else if (p.plate === d.techPlate) plateHit = `${d.techModel}<small>egasi: ${d.techOwner}</small>`;
+    else {
+      if (!this.otherCar) {
+        const [cn] = pick(CAR_COLORS);
+        this.otherCar = `${pick(CAR_TYPES).name} (${cn})<small>egasi: ${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}</small>`;
+      }
+      plateHit = this.otherCar;
+    }
+    const proxy = d.techOwner !== d.licenseName;
+    $('inspBody').innerHTML = `
+      <div class="tablet">
+        <div class="bar"><span>📱 YPX bazasi</span><span>📅 Bugun: <b style="color:#fff">${t}</b></span></div>
+        <div class="faces">
+          <div><canvas id="tfDriver" width="96" height="112"></canvas>Oldingizdagi<br>haydovchi</div>
+          <div><canvas id="tfLic" width="96" height="112"></canvas>Guvohnomadagi<br>rasm</div>
+          <div><canvas id="tfBase" width="96" height="112"></canvas>Bazadagi<br>rasm</div>
+        </div>
+        <table class="cmp">
+          <tr><th>Maydon</th><th>Hujjatda</th><th>Bazada</th></tr>
+          <tr><td>F.I.Sh.</td><td>${d.licenseName}</td><td>${d.licenseName}</td></tr>
+          <tr><td>Guvohnoma muddati</td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td></tr>
+          <tr><td>Davlat raqami</td><td>Mashinada: <b>${p.noPlate ? 'yo‘q' : p.plate}</b><small>Texpasportda: ${d.techPlate}</small></td><td>${d.techPlate}<small>texpasport bo‘yicha</small></td></tr>
+          <tr><td>Mashinadagi raqam bo‘yicha qidiruv</td><td>${p.noPlate ? '—' : p.plate}</td><td>${plateHit}</td></tr>
+          <tr><td>Mashina egasi</td><td>${d.techOwner}</td><td>${d.techOwner}${proxy ? '<small>Ishonchnoma: rasmiylashtirilgan</small>' : ''}</td></tr>
+          <tr><td>Sug‘urta polisi</td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td></tr>
+        </table>
+      </div>
+      ${this.flagRow('guvohnoma', 'Guvohnoma muddati o‘tgan')}
+      ${this.flagRow('rasm', 'Haydovchi guvohnomadagi odam emas')}
+      ${this.flagRow('texraqam', 'Raqam mashinaga mos emas')}
+      ${this.flagRow('sugurta', 'Sug‘urta muddati o‘tgan')}`;
+    drawFace($('tfDriver'), p.face);
+    drawFace($('tfLic'), { ...d.licensePhoto, bg: '#dde6f0', drunk: false });
+    drawFace($('tfBase'), { ...d.licensePhoto, bg: '#e8e2d0', drunk: false });
+    this.bindFlags();
   }
 
   // ---------- breathalyser ----------
