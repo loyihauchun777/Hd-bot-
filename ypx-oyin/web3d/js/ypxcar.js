@@ -2,6 +2,8 @@
 // car's width and the drawing's side / top / front / rear views are mapped onto the faces.
 import * as THREE from './three.module.min.js';
 import { YPX_CAR } from './ypxcar_data.js';
+import { YPX_CAR2 } from './ypxcar2_data.js';
+const VARIANTS = { 1: YPX_CAR, 2: YPX_CAR2 };
 
 const loader = new THREE.TextureLoader();
 const texCache = {};
@@ -24,9 +26,9 @@ function fit(points, ci, vi) {
   return [a, (sy - a * sx) / n];
 }
 
-let bodyGeo = null;
-function buildBodyGeometry() {
-  const { poly, width: W, length: L, height: H } = YPX_CAR;
+const bodyGeos = {};
+function buildBodyGeometry(D) {
+  const { poly, width: W, length: L, height: H } = D;
   const shape = new THREE.Shape();
   poly.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
   shape.closePath();
@@ -72,9 +74,11 @@ function buildBodyGeometry() {
   return geo;
 }
 
-export function makeYpxCar() {
-  if (!bodyGeo) bodyGeo = buildBodyGeometry();
-  const { width: W, wheelR, wheelX, wheelY, barX, roofY } = YPX_CAR;
+export function makeYpxCar(variant = 1) {
+  const D = VARIANTS[variant] || YPX_CAR;
+  const bodyGeo = bodyGeos[variant] || (bodyGeos[variant] = buildBodyGeometry(D));
+  const P = D.prefix || 'ypx';
+  const { width: W, wheelR, wheelX, wheelY, barX, roofY } = D;
   const g = new THREE.Group();
   const body = new THREE.Group();
   g.add(body);
@@ -82,8 +86,8 @@ export function makeYpxCar() {
   // glossy car paint
   const paint = map => new THREE.MeshPhongMaterial({ map, shininess: 90, specular: 0x666666 });
   const shell = new THREE.Mesh(bodyGeo, [
-    paint(tex('ypx_side_l')), paint(tex('ypx_side_r')), paint(tex('ypx_top')),
-    paint(tex('ypx_front')), paint(tex('ypx_rear')), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+    paint(tex(P + '_side_l')), paint(tex(P + '_side_r')), paint(tex(P + '_top')),
+    paint(tex(P + '_front')), paint(tex(P + '_rear')), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
   ]);
   shell.castShadow = true; shell.receiveShadow = true;
   body.add(shell);
@@ -91,7 +95,7 @@ export function makeYpxCar() {
   // wheels with the drawing's rim on both faces
   const wheelGeo = new THREE.CylinderGeometry(wheelR, wheelR, 0.26, 20);
   wheelGeo.rotateX(Math.PI / 2);
-  const rim = lam(tex('ypx_wheel'));
+  const rim = lam(tex(P + '_wheel'));
   const tyre = new THREE.MeshLambertMaterial({ color: 0x151515 });
   const wheels = [];
   for (const x of wheelX) for (const s of [1, -1]) {
@@ -123,7 +127,7 @@ export function makeYpxCar() {
   const glowBlue = glow(0x3a6bff, seg * 0.9), glowRed = glow(0xff3030, -seg * 0.9);
 
   // side mirrors
-  const { mirrorX, mirrorY, length: L } = YPX_CAR;
+  const { mirrorX, mirrorY, length: L } = D;
   const white = new THREE.MeshPhongMaterial({ color: 0xf2f4f6, shininess: 90, specular: 0x666666 });
   const black = new THREE.MeshLambertMaterial({ color: 0x1b1d22 });
   for (const s of [1, -1]) {

@@ -91,7 +91,8 @@ export const SHOP = {
     { id: 'parad', name: 'Parad formasi', price: 2000, rank: 1, shirt: 0xf2f2f2, pants: 0x1e283b, vest: false },
   ],
   car: [
-    { id: 'sedan', name: 'Patrul sedani', price: 0, rank: 0, type: 'sedan' },
+    { id: 'sedan', name: 'Patrul sedani', price: 0, rank: 0, type: 'sedan', ypx: 1 },
+    { id: 'sedan2', name: 'Yangi YPX sedani', price: 0, rank: 0, type: 'sedan', ypx: 2 },
     { id: 'suv', name: 'Patrul krossoveri', price: 1500, rank: 0, type: 'suv' },
     { id: 'van', name: 'Patrul mikroavtobusi', price: 3000, rank: 2, type: 'van' },
   ],
