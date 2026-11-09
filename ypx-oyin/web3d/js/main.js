@@ -446,6 +446,7 @@ function checkMissed() {
 
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 function updateCamera(dt) {
+  if (G.freezeCam) return; // used by automated screenshot tests
   const k = Math.min(1, dt * 5);
   if (G.mode === 'menu' || G.mode === 'report') {
     const a = G.t * 0.05;
@@ -526,4 +527,4 @@ camera.position.set(-3, 9, 29);
 requestAnimationFrame(frame);
 
 // test hook (used by automated browser tests)
-window.__ypx = { G, traffic, save, officer: () => officer, doWhistle, doTalk, inspection };
+window.__ypx = { G, traffic, save, cam: camera, officer: () => officer, doWhistle, doTalk, inspection };

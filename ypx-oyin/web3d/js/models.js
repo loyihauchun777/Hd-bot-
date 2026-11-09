@@ -185,14 +185,25 @@ export function makeCar(type, opts = {}) {
   if (type.id === 'hatch') { cabL = l * 0.58; cabX = -l * 0.1; }
   if (type.id === 'suv') { cabL = l * 0.62; cabX = -l * 0.08; }
   const cabY = wheelY + lowH - 0.05 + cabH / 2;
-  body.add(box(cabL, cabH, w * 0.9, paint, cabX, cabY, 0));
+  // cabin with sloped windshield / rear window (side profile extruded across the width)
+  const slopeF = type.id === 'van' ? 0.25 : cabH * 1.0;   // windshield lean
+  const slopeR = type.id === 'van' ? 0.08 : type.id === 'sedan' ? cabH * 0.75 : cabH * 0.35;
+  const cab = (inflate, y0, y1, depth, material) => {
+    const b0 = cabY - cabH / 2, x0 = cabX - cabL / 2, x1 = cabX + cabL / 2;
+    const xr = y => x0 + slopeR * (y - b0) / cabH - inflate; // rear edge at height y
+    const xf = y => x1 - slopeF * (y - b0) / cabH + inflate; // front edge at height y
+    const sh = new THREE.Shape();
+    sh.moveTo(xr(y0), y0); sh.lineTo(xf(y0), y0); sh.lineTo(xf(y1), y1); sh.lineTo(xr(y1), y1); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false });
+    geo.translate(0, 0, -depth / 2);
+    const m = new THREE.Mesh(geo, material); m.castShadow = true; m.receiveShadow = true;
+    return m;
+  };
+  const b0 = cabY - cabH / 2;
+  body.add(cab(0, b0, b0 + cabH, w * 0.9, paint));
   const wm = windowMat(opts.tinted);
-  // side windows
-  body.add(box(cabL * 0.86, cabH * 0.62, w * 0.92, wm, cabX, cabY + 0.02, 0));
-  // windshield + rear window
-  const ws = box(0.06, cabH * 0.7, w * 0.8, windowMat(false), cabX + cabL / 2 + 0.01, cabY + 0.02, 0);
-  body.add(ws);
-  body.add(box(0.06, cabH * 0.65, w * 0.78, wm, cabX - cabL / 2 - 0.01, cabY + 0.02, 0));
+  // glass band: slightly larger so it shows on the sides and on both slopes
+  body.add(cab(0.02, b0 + cabH * 0.12, b0 + cabH * 0.86, w * 0.92, wm));
   // wheels
   const wheelGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 12);
   wheelGeo.rotateX(Math.PI / 2);
@@ -232,30 +243,8 @@ export function makeCar(type, opts = {}) {
     head.position.set(cabX + cabL * 0.12, cabY + 0.05, -w * 0.22);
     body.add(head);
   }
-  // police livery + light bar
-  if (opts.police) {
-    body.add(box(l * 0.98, 0.16, w + 0.01, mat(0x1f5fd0), 0, wheelY + lowH * 0.55, 0));
-    const bar = new THREE.Group();
-    bar.position.set(cabX, cabY + cabH / 2 + 0.08, 0);
-    const red = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.45), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
-    const blue = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.45), new THREE.MeshBasicMaterial({ color: 0x2050ff }));
-    red.position.z = 0.25; blue.position.z = -0.25;
-    bar.add(red, blue);
-    body.add(bar);
-    g.userData.lights = { red, blue };
-    // "YPX" text on doors
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
-    const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.font = 'bold 54px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('YPX', 128, 34);
-    const tex = new THREE.CanvasTexture(cv);
-    const tm = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
-    for (const s of [1, -1]) {
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), tm);
-      p.position.set(0, wheelY + lowH * 0.55, s * (w / 2 + 0.02));
-      if (s < 0) p.rotation.y = Math.PI;
-      body.add(p);
-    }
-  }
+  // police livery (YPX style: white body, blue stripes, green-yellow band, lettering) + light bar
+  if (opts.police) addPoliceLivery(g, body, { l, w, lowH, wheelY, cabX, cabL, cabY, cabH });
   // turn signal (right side, for pull-over)
   const sig = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({ color: 0xffa000 }));
   sig.position.set(l / 2 - 0.05, wheelY + lowH * 0.65, w / 2 + 0.02);
@@ -392,4 +381,102 @@ export function makeMarker() {
   const m = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 4), new THREE.MeshBasicMaterial({ color: 0xffd400 }));
   m.rotation.x = Math.PI;
   return m;
+}
+
+// ---------- YPX patrol livery ----------
+function decalTexture(wpx, hpx, draw) {
+  const cv = document.createElement('canvas'); cv.width = wpx; cv.height = hpx;
+  draw(cv.getContext('2d'), wpx, hpx);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+// Side decal. frontRight=true when the car's front is on the viewer's right.
+function sideDecal(frontRight) {
+  return decalTexture(1024, 256, (c, W, H) => {
+    const X = x => frontRight ? x : W - x; // mirror positions, never the text
+    // blue pinstripes along the top (window line)
+    c.fillStyle = '#1d3f9e'; c.fillRect(0, 10, W, 9); c.fillRect(0, 26, W, 5);
+    // green-yellow diagonal band near the rear
+    const band = (x0, width, col) => {
+      c.fillStyle = col; c.beginPath();
+      const k = frontRight ? 1 : -1;
+      c.moveTo(X(x0), H); c.lineTo(X(x0 + width), H);
+      c.lineTo(X(x0 + width) + k * 120, 0); c.lineTo(X(x0) + k * 120, 0); c.closePath(); c.fill();
+    };
+    band(230, 60, '#25a244'); band(290, 30, '#f2d230'); band(320, 34, '#25a244');
+    // lettering
+    c.fillStyle = '#16307a'; c.textBaseline = 'middle';
+    c.font = 'bold 60px Arial Narrow, Arial, sans-serif'; c.textAlign = 'center';
+    c.fillText('YO‘L-PATRUL XIZMATI', frontRight ? W * 0.6 : W * 0.4, H * 0.4);
+    // small "YPX" + 102 near the rear
+    c.font = 'bold 46px Arial, sans-serif';
+    c.fillText('YPX', X(85), 72);
+    c.font = 'bold 34px Arial, sans-serif';
+    c.fillText('☎ 102', X(85), 120);
+    // generic round badge (not an official emblem) on the front door
+    const bx = X(W * 0.47), by = H * 0.75;
+    c.fillStyle = '#16307a'; c.beginPath(); c.arc(bx, by, 34, 0, 7); c.fill();
+    c.fillStyle = '#d9b44a'; c.beginPath(); c.arc(bx, by, 27, 0, 7); c.fill();
+    c.fillStyle = '#16307a'; c.font = 'bold 34px Arial'; c.fillText('★', bx, by + 2);
+  });
+}
+
+function topText(text, color = '#16307a', size = 150) {
+  return decalTexture(512, 256, (c, W, H) => {
+    c.fillStyle = color; c.font = `bold ${size}px Arial, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(text, W / 2, H / 2 + 6);
+  });
+}
+
+function addPoliceLivery(g, body, d) {
+  const { l, w, lowH, wheelY, cabX, cabL, cabY, cabH } = d;
+  const decal = tex => new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const sideH = lowH * 0.92, sideY = wheelY + lowH / 2 - 0.02;
+  // right side (+z): front is on the viewer's right
+  const right = new THREE.Mesh(new THREE.PlaneGeometry(l * 0.97, sideH), decal(sideDecal(true)));
+  right.position.set(0, sideY, w / 2 + 0.012);
+  body.add(right);
+  // left side (-z): rotated so it reads from that side; front is on the viewer's left
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(l * 0.97, sideH), decal(sideDecal(false)));
+  left.position.set(0, sideY, -w / 2 - 0.012); left.rotation.y = Math.PI;
+  body.add(left);
+  // hood "YPX" readable from the front, trunk "YPX" readable from behind, roof "102"
+  const topY = wheelY + lowH - 0.05 + 0.012;
+  const hoodLen = l / 2 - (cabX + cabL / 2);
+  if (hoodLen > 0.4) {
+    const hood = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.7, Math.min(hoodLen * 0.8, w * 0.35)), decal(topText('YPX')));
+    hood.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+    hood.position.set(cabX + cabL / 2 + hoodLen / 2, topY, 0);
+    body.add(hood);
+  }
+  const trunkLen = (cabX - cabL / 2) + l / 2;
+  if (trunkLen > 0.4) {
+    const trunk = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.6, Math.min(trunkLen * 0.8, w * 0.3)), decal(topText('YPX')));
+    trunk.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+    trunk.position.set(-l / 2 + trunkLen / 2, topY, 0);
+    body.add(trunk);
+  }
+  const rearFace = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.45, lowH * 0.35), decal(topText('YPX', '#16307a', 170)));
+  rearFace.rotation.y = -Math.PI / 2;
+  rearFace.position.set(-l / 2 - 0.012, wheelY + lowH * 0.72, 0);
+  body.add(rearFace);
+  const roofY = cabY + cabH / 2 + 0.012;
+  const roof = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.55, cabL * 0.3), decal(topText('102', '#16307a', 170)));
+  roof.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+  roof.position.set(cabX - cabL * 0.22, roofY, 0);
+  body.add(roof);
+
+  // light bar: blue | grey | red across the roof
+  const bar = new THREE.Group();
+  bar.position.set(cabX + cabL * 0.12, cabY + cabH / 2 + 0.07, 0);
+  bar.add(box(0.3, 0.05, w * 0.82, mat(0x222222), 0, -0.05, 0));
+  const seg = w * 0.27;
+  const blue = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.11, seg), new THREE.MeshBasicMaterial({ color: 0x2050ff }));
+  const grey = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.11, seg * 0.8), mat(0xc8ccd2));
+  const red = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.11, seg), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+  blue.position.z = seg * 0.9; red.position.z = -seg * 0.9;
+  bar.add(blue, grey, red);
+  body.add(bar);
+  g.userData.lights = { red, blue };
 }
