@@ -2,10 +2,15 @@ name: YPX xodimi APK
 
 on:
   push:
+    branches-ignore:
+      - ypx-ci-log
     paths:
       - 'ypx-oyin/**'
       - '.github/workflows/ypx-apk.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -24,7 +29,7 @@ jobs:
 
       - name: APK yig'ish
         working-directory: ypx-oyin/android
-        run: gradle --no-daemon assembleRelease
+        run: gradle --no-daemon assembleRelease 2>&1 | tee ../../build.log; exit ${PIPESTATUS[0]}
 
       - name: APK nomini o'zgartirish
         run: cp ypx-oyin/android/app/build/outputs/apk/release/app-release.apk ypx-xodimi.apk
@@ -33,3 +38,15 @@ jobs:
         with:
           name: ypx-xodimi-apk
           path: ypx-xodimi.apk
+
+      # On failure, store the build log on a side branch so it can be read with git.
+      - name: Xato logini saqlash
+        if: failure()
+        run: |
+          cp build.log /tmp/build.log || echo "no log" > /tmp/build.log
+          git config user.name "ci" && git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan ypx-ci-log
+          git rm -rfq . || true
+          cp /tmp/build.log build.log
+          git add build.log && git commit -qm "CI build log ${GITHUB_SHA}"
+          git push -f origin ypx-ci-log
