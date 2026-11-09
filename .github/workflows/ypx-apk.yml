@@ -1,0 +1,37 @@
+name: YPX xodimi APK
+
+on:
+  push:
+    paths:
+      - 'ypx-oyin/**'
+      - '.github/workflows/ypx-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: APK yig'ish
+        working-directory: ypx-oyin/android
+        run: gradle --no-daemon assembleRelease
+
+      - name: APK nomini o'zgartirish
+        run: cp ypx-oyin/android/app/build/outputs/apk/release/app-release.apk ypx-xodimi.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ypx-xodimi-apk
+          path: ypx-xodimi.apk
