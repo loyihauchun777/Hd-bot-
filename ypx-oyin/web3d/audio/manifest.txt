@@ -1,5 +1,3 @@
 # <file under web3d/audio> <download url>
 # Signed ElevenLabs links expire after a few hours; the APK workflow downloads them,
 # commits the mp3 files and empties this list.
-inspector/I1.mp3 https://elevenlabsusercontent.com/database/workspace/4bb06eabc86a445ebeaaff944fad84f4/content_generation/eOytdhsViAP7ZhGgK1LT/4rjbo1JdgFjlx2a7Yw21/content.mp3?Expires=1794258000&KeyName=assets-cdn-key-1&Signature=mRrzaHGQ7a_6VGFv47iUMLXNAZo=
-inspector/I6.mp3 https://elevenlabsusercontent.com/database/workspace/4bb06eabc86a445ebeaaff944fad84f4/content_generation/tMW7FaRSxzMH1Usfnzbi/6oIhJR8WqP9EQu70GKTR/content.mp3?Expires=1794258000&KeyName=assets-cdn-key-1&Signature=e5ux6APXfWfOnj9xtX9WAXuz28s=
