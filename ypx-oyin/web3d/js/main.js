@@ -4,6 +4,7 @@ import { buildWorld, ROAD } from './world.js';
 import { Traffic } from './traffic.js';
 import { makeOfficer, animateOfficer, makeCar, makeMarker } from './models.js';
 import { Inspection } from './inspect.js';
+import { makeYpxCar } from './ypxcar.js';
 import { sfx } from './audio.js';
 import { RANKS, SHOP, SHIFT_SECONDS, CAR_TYPES } from './data.js';
 
@@ -56,7 +57,8 @@ function buildPatrol() {
   if (patrol) scene.remove(patrol);
   const def = SHOP.car.find(c => c.id === save.car) || SHOP.car[0];
   const type = CAR_TYPES.find(t => t.id === def.type);
-  patrol = makeCar(type, { color: 0xf4f6fa, police: true, plate: '01 YPX 777' });
+  // the default patrol sedan is built from the user's YPX drawing
+  patrol = def.type === 'sedan' ? makeYpxCar() : makeCar(type, { color: 0xf4f6fa, police: true, plate: '01 YPX 777' });
   patrol.position.set(-7.5, 0, ROAD.bayZ);
   scene.add(patrol);
 }
