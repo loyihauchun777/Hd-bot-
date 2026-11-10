@@ -86,16 +86,20 @@ for xx in range(Wt):
 ft = [0, runs[0][0] / Wt, runs[0][1] / Wt, runs[-1][0] / Wt, runs[-1][1] / Wt, 1] if len(runs) >= 2 else fs
 
 def plate_frac(view):
-    crop, m = view; hh = crop.shape[0]
-    hv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    wm = ((hv[..., 2] > 225) & (hv[..., 1] < 30)).astype(np.uint8) * 255
-    wm[: hh // 2] = 0
-    cs, _ = cv2.findContours(wm, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    """Height (fraction from the ground) of the licence plate: a framed, near-white rectangle."""
+    crop, m = view; hh, ww = crop.shape[:2]
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    edges = cv2.dilate(cv2.Canny(gray, 40, 120), np.ones((3, 3), np.uint8))
+    cs, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     best = None
     for c in cs:
         x, y, w, h = cv2.boundingRect(c)
-        if h > 0 and 2.8 < w / h < 7 and w > crop.shape[1] * 0.15 and (best is None or w > best[2]): best = (x, y, w, h)
-    if not best: return 0.25
+        if not (2.6 < w / max(h, 1) < 6.5 and ww * 0.15 < w < ww * 0.5 and h < hh * 0.15 and y > hh * 0.3): continue
+        inner = gray[y + h // 4:y + 3 * h // 4, x + w // 8:x + 7 * w // 8]
+        if inner.size == 0 or inner.mean() < 200: continue
+        if abs((x + w / 2) - ww / 2) > ww * 0.12: continue  # plates are centred
+        if best is None or w * h > best[2] * best[3]: best = (x, y, w, h)
+    if not best: return 0.32  # no plate drawn: typical bumper/trunk height
     return float((hh - 1 - (best[1] + best[3] / 2)) / (hh - 1))
 
 # textures (background -> white so edges never show magenta)
