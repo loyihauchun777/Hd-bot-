@@ -33,18 +33,36 @@ assert set(views) == {'side', 'top', 'front', 'rear'}, views.keys()
 
 side, sm = views['side']; Hs, Ws = sm.shape
 GROUND = Hs - 1
-# wheels: dark tyre blobs in the lower part of the side view
-hsv = cv2.cvtColor(side, cv2.COLOR_BGR2HSV)
-dark = ((hsv[..., 2] < 75) & (sm > 0)).astype(np.uint8) * 255
-dark[: int(Hs * 0.5)] = 0
-dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))  # drop thin sill lines joining the tyres
-dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
-nn, ll, ss, cc = cv2.connectedComponentsWithStats(dark)
-blobs = sorted([ss[k] for k in range(1, nn) if 0.6 < ss[k][2] / max(1, ss[k][3]) < 1.7], key=lambda s: -s[4])[:2]
-blobs = sorted(blobs, key=lambda s: s[0])  # front (left) first
+# wheels: the tyres are the only parts touching the ground -> contact patches give the centres,
+# then the radius is the circle (centre on the patch, resting on the ground) with the strongest edge
+botline = np.array([np.nonzero(sm[:, x])[0].max() for x in range(Ws)])
+touch = botline >= GROUND - max(2, 0.012 * Hs)
+patches, sx0 = [], None
+for x in range(Ws):
+    if touch[x] and sx0 is None: sx0 = x
+    if (not touch[x] or x == Ws - 1) and sx0 is not None:
+        if x - sx0 > 0.015 * Ws: patches.append((sx0, x))
+        sx0 = None
+patches = sorted(sorted(patches, key=lambda p: -(p[1] - p[0]))[:2])
+edges = cv2.Canny(cv2.cvtColor(side, cv2.COLOR_BGR2GRAY), 40, 120)
+edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
+ang = np.linspace(np.pi * 1.08, np.pi * 1.92, 60)  # upper arc (image y grows downwards)
 wheels = []
-for (x, y, w, h, a) in blobs:
-    rr = max(w, h) / 2; wheels.append((x + w / 2, y + h - rr, rr))
+for (p0, p1) in patches:
+    wxc = (p0 + p1) / 2
+    # fit the tyre's lower arc: height above ground h(dx) = r - sqrt(r^2 - dx^2) near the contact patch
+    hgt = GROUND - botline
+    best_r, best_e = None, 1e9
+    for rr in range(int(0.10 * Hs), int(0.36 * Hs)):
+        xs = np.arange(max(0, int(wxc - rr)), min(Ws, int(wxc + rr)))
+        dx = xs - wxc
+        model = rr - np.sqrt(np.maximum(0, rr * rr - dx * dx))
+        use = model <= 0.32 * rr  # lower part of the tyre only (it is the lowest thing there)
+        if use.sum() < 6: continue
+        e = np.mean(np.abs(hgt[xs[use]] - model[use]))
+        if e < best_e: best_e, best_r = e, rr
+    rr = best_r
+    wheels.append((wxc, GROUND - rr, rr))
 cols = range(Ws)
 top = np.array([np.nonzero(sm[:, x])[0].min() for x in cols], float)
 bot = np.array([np.nonzero(sm[:, x])[0].max() for x in cols], float)

@@ -25,10 +25,18 @@ function dateOffset(days) { const d = new Date(); d.setHours(12, 0, 0, 0); d.set
 const CIV_COLORS = [['oq', 0xffffff], ['oq', 0xffffff], ['oq', 0xffffff], ['oq', 0xffffff], ['kumush', 0xc4c9cf],
   ['qora', 0x46484d], ['kulrang', 0x8c9198], ['to‘q ko‘k', 0x5a73a8], ['qizil', 0xc85050], ['jigarrang', 0x9a7b5c]];
 const CIV_TYPES = CIV_MODELS.map(m => ({ id: m.id, name: m.name, l: m.length, w: m.width, h: m.height, civ: m }));
+// how common each model is on Uzbek streets (relative weights); unknown models get 1.5
+const CIV_WEIGHT = { cobalt: 3, spark: 3, nexia3: 2.5, nexia: 2.5, damas: 2.5, gentra: 2.5, matiz: 2, onix: 1.5, tracker: 1, malibu: 1 };
+function pickCiv() {
+  const total = CIV_TYPES.reduce((a, t) => a + (CIV_WEIGHT[t.id] ?? 1.5), 0);
+  let r = Math.random() * total;
+  for (const t of CIV_TYPES) { r -= CIV_WEIGHT[t.id] ?? 1.5; if (r <= 0) return t; }
+  return CIV_TYPES[0];
+}
 
 function makeProfile(nearSide) {
   // street cars from reference sheets (real Uzbek models) when available, else procedural ones
-  const type = CIV_TYPES.length && Math.random() < 0.75 ? pick(CIV_TYPES) : pick(CAR_TYPES);
+  const type = CIV_TYPES.length && Math.random() < 0.9 ? pickCiv() : pick(CAR_TYPES);
   const [colorName, color] = type.civ ? pick(CIV_COLORS) : pick(CAR_COLORS);
   const first = pick(FIRST_NAMES), last = pick(LAST_NAMES);
   const face = randomFace();
