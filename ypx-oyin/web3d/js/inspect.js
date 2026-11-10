@@ -122,31 +122,53 @@ export class Inspection {
     const p = this.car.prof, d = p.docs;
     const today = new Date();
     const t = String(today.getDate()).padStart(2, '0') + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + today.getFullYear();
+    // stable pseudo-numbers for this driver (document numbers, issue date)
+    let h = 0; for (const ch of d.licenseName + p.plate) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const num = n => String(h % 10 ** n).padStart(n, '0');
+    const [dd, mm, yy] = d.licenseUntil.split('.');
+    const issued = `${dd}.${mm}.${+yy - 10}`;
+    const [first, ...rest] = d.licenseName.split(' ');
+    const last = rest.join(' ');
+    const [model, colour] = d.techModel.replace(')', '').split(' (');
+    const boxes = (str, n) => str.padEnd(n).slice(0, n).split('').map(c => `<i>${c}</i>`).join('');
     $('inspBody').innerHTML = `
       <div class="today">📅 Bugun: <b>${t}</b> · 🚗 Mashinadagi raqam: <b>${p.noPlate ? 'YO‘Q' : p.plate}</b></div>
-      <div class="doc"><canvas id="licPhoto" width="96" height="112"></canvas>
-        <h4>Haydovchilik guvohnomasi</h4>
-        <div class="f"><span>F.I.Sh.</span><b>${d.licenseName}</b></div>
-        <div class="f"><span>Toifa</span><b>B</b></div>
-        <div class="f"><span>Amal qiladi</span><b>${d.licenseUntil} gacha</b></div>
-        <div style="clear:both"></div>
-        ${this.flagRow('guvohnoma', 'Muddati o‘tgan')}
-        ${this.flagRow('rasm', 'Rasm haydovchiga o‘xshamaydi')}
+      <div class="card lic">
+        <div class="ttl">HAYDOVCHILIK GUVOHNOMASI<small>o‘yin hujjati</small></div>
+        <canvas id="licPhoto" width="96" height="128"></canvas>
+        <div class="flds">
+          <div><span>1.</span><b>${last.toUpperCase()}</b></div>
+          <div><span>2.</span><b>${first.toUpperCase()}</b></div>
+          <div><span>4a.</span>${issued}</div>
+          <div><span>4b.</span><b>${d.licenseUntil}</b></div>
+          <div><span>5.</span>AF ${num(7)}</div>
+          <div><span>9.</span><b class="cat">B</b></div>
+        </div>
       </div>
-      <div class="doc">
-        <h4>Texnik pasport</h4>
-        <div class="f"><span>Davlat raqami</span><b>${d.techPlate}</b></div>
-        <div class="f"><span>Rusumi</span><b>${d.techModel}</b></div>
-        <div class="f"><span>Egasi</span><b>${d.techOwner}</b></div>
-        ${this.flagRow('texraqam', 'Raqam mashinaga mos emas')}
-        ${this.flagRow('egasi', 'Egasi boshqa odam')}
+      ${this.flagRow('guvohnoma', 'Guvohnoma muddati o‘tgan (4b)')}
+      ${this.flagRow('rasm', 'Rasm haydovchiga o‘xshamaydi')}
+      <div class="card tech">
+        <div class="ttl">TRANSPORT VOSITASINI QAYD ETISH GUVOHNOMASI<small>o‘yin hujjati</small></div>
+        <div class="flds">
+          <div><span>Davlat raqami</span><b class="plate">${d.techPlate}</b></div>
+          <div><span>Rusumi</span><b>${model}</b></div>
+          <div><span>Rangi</span>${colour || ''}</div>
+          <div><span>Egasi</span><b>${d.techOwner}</b></div>
+          <div><span>Guvohnoma №</span>AAF ${num(7).split('').reverse().join('')}</div>
+        </div>
       </div>
-      <div class="doc">
-        <h4>Sug‘urta polisi</h4>
-        <div class="f"><span>Avtomobil</span><b>${d.techPlate}</b></div>
-        <div class="f"><span>Amal qiladi</span><b>${d.insuranceUntil} gacha</b></div>
-        ${this.flagRow('sugurta', 'Muddati o‘tgan')}
-      </div>`;
+      ${this.flagRow('texraqam', 'Raqam mashinaga mos emas')}
+      ${this.flagRow('egasi', 'Egasi boshqa odam')}
+      <div class="card ins">
+        <div class="ttl">SUG‘URTA POLISI<small>o‘yin hujjati</small></div>
+        <div class="pno"><span>№</span><em>${boxes(num(9), 9)}</em></div>
+        <div class="until">Amal qiladi: <b>${d.insuranceUntil}</b> gacha</div>
+        <div class="l1"><span>Sug‘urtalanuvchi:</span> <b>${d.techOwner}</b></div>
+        <div class="l2"><span>Transport vositasi:</span> <b>${model}</b></div>
+        <div class="pl"><span>Davlat raqami</span><em>${boxes(d.techPlate.replace(/ /g, ''), 14)}</em></div>
+        <div class="mp">M.O‘.</div><div class="sg">Imzo: <i>~~~~</i></div>
+      </div>
+      ${this.flagRow('sugurta', 'Sug‘urta muddati o‘tgan')}`;
     drawFace($('licPhoto'), { ...d.licensePhoto, bg: '#dde6f0', drunk: false });
     this.bindFlags();
     if (d.techOwner !== d.licenseName && !this.ownerLineSaid) { this.ownerLineSaid = true; this.script([['d', 'D14']]); }

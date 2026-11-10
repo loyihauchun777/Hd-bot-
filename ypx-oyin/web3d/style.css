@@ -107,3 +107,33 @@ button:disabled { opacity:.45; }
 #limitSign { position:fixed; left:14px; top:64px; width:58px; height:58px; border-radius:50%; background:#fff; border:7px solid #d42a2a;
   color:#111; font:800 22px system-ui,sans-serif; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px #0008; pointer-events:none; z-index:5; }
 #limitSign small { position:absolute; bottom:-18px; font-size:10px; color:#fff; text-shadow:0 1px 2px #000; white-space:nowrap; }
+
+/* document cards (backgrounds: textures/doc_*.jpg); sizes in cqw so they scale with the panel */
+.card { position:relative; width:100%; container-type:inline-size; background-size:100% 100%; border-radius:14px; color:#1a2233;
+  box-shadow:0 2px 8px #0007; margin:6px 0 4px; font-size:13px; overflow:hidden; }
+.card.lic { aspect-ratio:1000/611; background-image:url(textures/doc_license.jpg); }
+.card.tech { aspect-ratio:1000/618; background-image:url(textures/doc_tech.jpg); }
+.card.ins { aspect-ratio:1000/622; background-image:url(textures/doc_insurance.jpg); border-radius:4px; }
+.card > * { position:absolute; }
+.card .ttl { left:26%; right:19%; top:6.5%; text-align:center; font-weight:800; font-size:3.5cqw; line-height:1.15; color:#1d2f5c; }
+.card .ttl small { display:block; font-weight:600; font-size:2.3cqw; color:#55607a; }
+.card.lic canvas { left:5.5%; top:25.3%; width:25.2%; height:55.1%; }
+.card .flds { left:35%; right:4%; top:27%; display:flex; flex-direction:column; gap:1.1cqw; font-size:3.9cqw; }
+.card .flds div { display:flex; gap:2cqw; align-items:baseline; }
+.card .flds span { color:#55607a; font-size:3cqw; min-width:6cqw; }
+.card .cat { border:0.5cqw solid #1a2233; padding:0 1.6cqw; border-radius:1cqw; }
+.card.tech .ttl { top:7.5%; font-size:3cqw; }
+.card.tech .flds { left:7%; right:7%; top:25%; gap:1.6cqw; }
+.card.tech .flds span { min-width:27cqw; }
+.card .plate { font-size:5cqw; letter-spacing:.3cqw; background:#fffc; border:0.5cqw solid #1a2233; border-radius:1cqw; padding:0 1.6cqw; }
+.card.ins .ttl { left:20%; right:20%; top:15%; font-size:3.6cqw; }
+.card.ins .ttl small { display:inline; margin-left:1.5cqw; font-size:2cqw; }
+.card.ins .pno { left:9%; right:63%; top:25.4%; height:3.8%; display:flex; align-items:center; justify-content:space-between; font-weight:700; font-size:3cqw; }
+.card.ins em { display:flex; font-style:normal; }
+.card.ins .pno em { width:18.2cqw; flex:none; } .card.ins .pl em { width:27.8cqw; flex:none; }
+.card.ins em i { flex:1; text-align:center; font-style:normal; font-weight:800; font-size:2.9cqw; }
+.card.ins .until { right:8.8%; top:25.5%; font-size:2.8cqw; }
+.card.ins .l1 { left:9%; top:32%; font-size:3.1cqw; } .card.ins .l2 { left:9%; top:42.6%; font-size:3.1cqw; }
+.card.ins .pl { right:8.8%; left:40%; justify-content:flex-end; top:53.1%; height:3.9%; display:flex; align-items:center; gap:1.4cqw; font-size:2.8cqw; }
+.card.ins .mp { left:9%; top:84%; font-size:3cqw; } .card.ins .sg { right:9%; top:84%; font-size:3cqw; }
+.card.ins span { color:#55607a; }
