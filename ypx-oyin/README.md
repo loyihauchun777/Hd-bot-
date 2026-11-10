@@ -29,3 +29,9 @@ Kompyuterda sinash: `cd web3d && python3 -m http.server` → http://localhost:80
 ## APK olish
 GitHub → **Actions** → **YPX xodimi APK** → oxirgi muvaffaqiyatli ishga tushirish → **Artifacts** → `ypx-xodimi-apk`.
 APK test kaliti bilan imzolangan; Play Market uchun o‘z keystore'ingiz bilan imzolang.
+
+## Ko‘chadagi mashinalarni qo‘shish
+1. Rasm generatorida mashinaning 2x2 chizmasini oling: chap-yuqorida yon ko‘rinish (chapga qaragan),
+   o‘ng-yuqorida tepadan (old tomoni chapda), chap-pastda old, o‘ng-pastda orqa; fon to‘liq magenta (#FF00FF), mashina oq.
+2. `python3 tools/buildciv.py rasm.png nexia3 "Chevrolet Nexia 3" 4.30 1.70` (uzunlik va kenglik metrda).
+3. `python3 tools/civindex.py` — `web3d/js/civdata.js` yangilanadi, mashina yo‘lda paydo bo‘ladi.

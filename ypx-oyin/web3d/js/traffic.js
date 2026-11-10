@@ -1,5 +1,7 @@
 // Traffic simulation: spawning, lane following, traffic light, pull-over and leaving.
 import { makeCar, randomFace, setLight } from './models.js';
+import { makeCivCar } from './civcar.js';
+import { CIV_MODELS } from './civdata.js';
 import { ROAD } from './world.js';
 import { CAR_TYPES, CAR_COLORS, FIRST_NAMES, LAST_NAMES, SPEED_LIMIT } from './data.js';
 
@@ -19,9 +21,15 @@ const fmtDate = d => String(d.getDate()).padStart(2, '0') + '.' + String(d.getMo
 function dateOffset(days) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days); return fmtDate(d); }
 
 // Build the hidden "truth" for a driver/car.
+// paint tints for the street-car photos (white paint multiplied by the tint); white is most common
+const CIV_COLORS = [['oq', 0xffffff], ['oq', 0xffffff], ['oq', 0xffffff], ['oq', 0xffffff], ['kumush', 0xc4c9cf],
+  ['qora', 0x46484d], ['kulrang', 0x8c9198], ['to‘q ko‘k', 0x5a73a8], ['qizil', 0xc85050], ['jigarrang', 0x9a7b5c]];
+const CIV_TYPES = CIV_MODELS.map(m => ({ id: m.id, name: m.name, l: m.length, w: m.width, h: m.height, civ: m }));
+
 function makeProfile(nearSide) {
-  const type = pick(CAR_TYPES);
-  const [colorName, color] = pick(CAR_COLORS);
+  // street cars from reference sheets (real Uzbek models) when available, else procedural ones
+  const type = CIV_TYPES.length && Math.random() < 0.75 ? pick(CIV_TYPES) : pick(CAR_TYPES);
+  const [colorName, color] = type.civ ? pick(CIV_COLORS) : pick(CAR_COLORS);
   const first = pick(FIRST_NAMES), last = pick(LAST_NAMES);
   const face = randomFace();
   const p = {
@@ -48,7 +56,7 @@ function makeProfile(nearSide) {
   if (chance(0.06)) p.hidden.push('rasm');
   if (chance(0.15)) p.hidden.push('sugurta');
   if (chance(0.06) && !p.noPlate) p.hidden.push('texraqam');
-  if (chance(0.12)) { p.hidden.push('fara'); p.brokenLight = true; }
+  if (chance(0.12) && !type.civ) { p.hidden.push('fara'); p.brokenLight = true; } // photo cars can't show a broken lamp
   if (chance(0.1)) { p.hidden.push('shina'); p.baldTire = true; }
   if (chance(0.1)) {
     p.drunk = true; p.hidden.push('mast'); p.face.drunk = true;
@@ -96,7 +104,9 @@ export class Traffic {
     const startX = x ?? (dir > 0 ? -ROAD.length / 2 + 8 : ROAD.length / 2 - 8);
     // keep distance from the last car in this lane
     for (const c of this.cars) if (c.lane === lane && c.state === 'drive' && Math.abs(c.x - startX) < 14) return null;
-    const mesh = makeCar(prof.type, {
+    const mesh = prof.type.civ ? makeCivCar(prof.type.civ, {
+      tint: prof.color, tinted: prof.tinted, noPlate: prof.noPlate, plate: prof.plate, baldTire: prof.baldTire,
+    }) : makeCar(prof.type, {
       color: prof.color, tinted: prof.tinted, noPlate: prof.noPlate, plate: prof.plate,
       brokenLight: prof.brokenLight, baldTire: prof.baldTire, driverSkin: parseInt(prof.face.skin.slice(1), 16),
     });
