@@ -2,6 +2,8 @@
 // Models (all CC BY 4.0, credited in the help screen and README):
 //   Nexia 2 — uzb_rx7; Chevrolet Malibu 2022 — slavanik24250794; Chevrolet Damas — own.guest;
 //   Chevrolet Nexia3 Midnight — doniyorgroup (Sketchfab).
+// Daewoo Matiz (nyranarod), Chevrolet Spark (Q.SARDOR): Sketchfab Standard licence, used under the owner's licence.
+// Chevrolet Tracker: model supplied by the owner (converted via imagetostl.com).
 import * as THREE from './three.module.min.js';
 import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
 import { plateTexture } from './models.js';
@@ -10,6 +12,9 @@ export const GLB_MODELS = [
   { id: 'nexia2', name: 'Chevrolet Nexia 2', file: 'models/nexia2.glb', length: 4.48, width: 1.66, height: 1.39, paint: 'carpaint', glass: ['windowglass'] },
   { id: 'nexia3', name: 'Chevrolet Nexia 3', file: 'models/nexia3.glb', length: 4.31, width: 1.71, height: 1.505, paint: 'Matte_FFFFFFFF', glass: ['Matte_827F7F7F'],
     unskew: [0.99124, -0.01391, 0.13134, 0.12391, 0.44202, -0.8884, -0.0457, 0.8969, 0.43988] },
+  { id: 'matiz', name: 'Daewoo Matiz', file: 'models/matiz.glb', length: 3.50, width: 1.50, height: 1.485, paint: 'Car_Paint', glass: ['Car_windshield_glass'], flip: true },
+  { id: 'spark', name: 'Chevrolet Spark', file: 'models/spark.glb', length: 3.64, width: 1.60, height: 1.52, paint: 'Chevrolet_Beat_2010_carpaint', glass: ['Chevrolet_Beat_2010_greenglass', 'Chevrolet_Beat_2010_clearglass'] },
+  { id: 'tracker', name: 'Chevrolet Tracker', file: 'models/tracker.glb', length: 4.27, width: 1.79, height: 1.63, paint: 'ID986', glass: ['ID486'] },
   { id: 'malibu', name: 'Chevrolet Malibu', file: 'models/malibu.glb', length: 4.93, width: 1.85, height: 1.46, paint: 'malibupaint', glass: ['malibuglass'] },
   { id: 'damas', name: 'Chevrolet Damas', file: 'models/damas.glb', length: 3.23, width: 1.40, height: 1.90, paint: 'material_3', glass: ['material_5'], flip: true },
 ];
@@ -46,6 +51,17 @@ export function loadGlbModels() {
       }
       const box = new THREE.Box3();
       parts.forEach(p => box.expandByObject(p));
+      // ground = bottom of the tyres when the model has them (ignores stray parts hanging below)
+      const tyres = parts.filter(p => /tire|tyre|shina/i.test(p.material.name || ''));
+      if (tyres.length) {
+        const tb = new THREE.Box3(); tyres.forEach(p => tb.expandByObject(p));
+        box.min.y = tb.min.y;
+        // drop parts that sit entirely below the tyres (shadow planes, debris)
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const pb = new THREE.Box3().setFromObject(parts[i]);
+          if (pb.max.y < tb.min.y + 0.02 * (tb.max.y - tb.min.y)) parts.splice(i, 1);
+        }
+      }
       const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
       // the long horizontal axis becomes +x (front), y is up, scaled to the real length
       const alongZ = size.z > size.x;

@@ -47,4 +47,7 @@ Mualliflar (3D modellar, CC BY 4.0, o‘yin uchun soddalashtirilgan):
 - «Chevrolet Damas» — own.guest, https://sketchfab.com/3d-models/chevrolet-damas-70f8556e4b3840e7b975f0e000b54757
 - «Chevrolet Nexia3 Midnight» — doniyorgroup, https://sketchfab.com/3d-models/chevrolet-nexia3-midnight-94522839a89a468f9cf422724ab7270c
 
+Egasining litsenziyasi asosida (Sketchfab Standard): «Daewoo Matiz» — nyranarod; «Chevrolet Spark» — Q.SARDOR.
+«Chevrolet Tracker» — egasi taqdim etgan model.
+
 Slim: `node tools/slim.mjs in.glb out.glb '{"ratio":0.2,"error":0.01,"dropMat":"leather"}'` (keepUV/tex — teksturali modellar uchun).
