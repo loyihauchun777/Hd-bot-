@@ -2,6 +2,7 @@
 import { makeCar, randomFace, setLight } from './models.js';
 import { makeCivCar } from './civcar.js';
 import { CIV_MODELS } from './civdata.js';
+import { GLB_MODELS, glbReady, makeGlbCar } from './glbcar.js';
 import { ROAD } from './world.js';
 import { CAR_TYPES, CAR_COLORS, FIRST_NAMES, LAST_NAMES, SPEED_LIMIT } from './data.js';
 
@@ -24,20 +25,22 @@ function dateOffset(days) { const d = new Date(); d.setHours(12, 0, 0, 0); d.set
 // paint tints for the street-car photos (white paint multiplied by the tint); white is most common
 const CIV_COLORS = [['oq', 0xffffff], ['oq', 0xffffff], ['oq', 0xffffff], ['oq', 0xffffff], ['kumush', 0xc4c9cf],
   ['qora', 0x46484d], ['kulrang', 0x8c9198], ['to‘q ko‘k', 0x5a73a8], ['qizil', 0xc85050], ['jigarrang', 0x9a7b5c]];
-const CIV_TYPES = CIV_MODELS.map(m => ({ id: m.id, name: m.name, l: m.length, w: m.width, h: m.height, civ: m }));
+const CIV_TYPES = CIV_MODELS.map(m => ({ id: m.id, name: m.name, l: m.length, w: m.width, h: m.height, civ: m }))
+  .concat(GLB_MODELS.map(m => ({ id: m.id, name: m.name, l: m.length, w: m.width, h: m.height, glb: m })));
 // how common each model is on Uzbek streets (relative weights); unknown models get 1.5
-const CIV_WEIGHT = { cobalt: 3, spark: 3, nexia3: 2.5, nexia: 2.5, damas: 2.5, gentra: 2.5, matiz: 2, onix: 1.5, tracker: 1, malibu: 1 };
+const CIV_WEIGHT = { nexia2: 3, cobalt: 3, spark: 3, nexia3: 2.5, nexia: 2.5, damas: 2.5, gentra: 2.5, matiz: 2, onix: 1.5, tracker: 1, malibu: 1 };
 function pickCiv() {
-  const total = CIV_TYPES.reduce((a, t) => a + (CIV_WEIGHT[t.id] ?? 1.5), 0);
+  const types = CIV_TYPES.filter(t => !t.glb || glbReady(t.id)); // 3D models once loaded
+  const total = types.reduce((a, t) => a + (CIV_WEIGHT[t.id] ?? 1.5), 0);
   let r = Math.random() * total;
-  for (const t of CIV_TYPES) { r -= CIV_WEIGHT[t.id] ?? 1.5; if (r <= 0) return t; }
-  return CIV_TYPES[0];
+  for (const t of types) { r -= CIV_WEIGHT[t.id] ?? 1.5; if (r <= 0) return t; }
+  return types[0];
 }
 
 function makeProfile(nearSide) {
   // street cars from reference sheets (real Uzbek models) when available, else procedural ones
   const type = CIV_TYPES.length && Math.random() < 0.9 ? pickCiv() : pick(CAR_TYPES);
-  const [colorName, color] = type.civ ? pick(CIV_COLORS) : pick(CAR_COLORS);
+  const [colorName, color] = type.civ || type.glb ? pick(CIV_COLORS) : pick(CAR_COLORS);
   const first = pick(FIRST_NAMES), last = pick(LAST_NAMES);
   const face = randomFace();
   const p = {
@@ -64,7 +67,7 @@ function makeProfile(nearSide) {
   if (chance(0.06)) p.hidden.push('rasm');
   if (chance(0.15)) p.hidden.push('sugurta');
   if (chance(0.06) && !p.noPlate) p.hidden.push('texraqam');
-  if (chance(0.12) && !type.civ) { p.hidden.push('fara'); p.brokenLight = true; } // photo cars can't show a broken lamp
+  if (chance(0.12) && !type.civ && !type.glb) { p.hidden.push('fara'); p.brokenLight = true; } // photo cars can't show a broken lamp
   if (chance(0.1)) { p.hidden.push('shina'); p.baldTire = true; }
   if (chance(0.1)) {
     p.drunk = true; p.hidden.push('mast'); p.face.drunk = true;
@@ -112,7 +115,9 @@ export class Traffic {
     const startX = x ?? (dir > 0 ? -ROAD.length / 2 + 8 : ROAD.length / 2 - 8);
     // keep distance from the last car in this lane
     for (const c of this.cars) if (c.lane === lane && c.state === 'drive' && Math.abs(c.x - startX) < 14) return null;
-    const mesh = prof.type.civ ? makeCivCar(prof.type.civ, {
+    const mesh = prof.type.glb ? makeGlbCar(prof.type.id, {
+      tint: prof.color === 0xffffff ? 0xf2f2f2 : prof.color, tinted: prof.tinted, noPlate: prof.noPlate, plate: prof.plate,
+    }) : prof.type.civ ? makeCivCar(prof.type.civ, {
       tint: prof.color, tinted: prof.tinted, noPlate: prof.noPlate, plate: prof.plate, baldTire: prof.baldTire,
     }) : makeCar(prof.type, {
       color: prof.color, tinted: prof.tinted, noPlate: prof.noPlate, plate: prof.plate,

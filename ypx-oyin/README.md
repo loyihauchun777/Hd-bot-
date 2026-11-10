@@ -35,3 +35,10 @@ APK test kaliti bilan imzolangan; Play Market uchun o‘z keystore'ingiz bilan i
    o‘ng-yuqorida tepadan (old tomoni chapda), chap-pastda old, o‘ng-pastda orqa; fon to‘liq magenta (#FF00FF), mashina oq.
 2. `python3 tools/buildciv.py rasm.png nexia3 "Chevrolet Nexia 3" 4.30 1.70` (uzunlik va kenglik metrda).
 3. `python3 tools/civindex.py` — `web3d/js/civdata.js` yangilanadi, mashina yo‘lda paydo bo‘ladi.
+
+## Tayyor 3D modellar (.glb)
+Juda og‘ir modellarni (`tools/slim.mjs`) bilan yengillashtiring: salon, tormoz, mayda detallar olib tashlanadi,
+sirt soddalashtiriladi. Keyin `web3d/models/` ga qo‘yib, `web3d/js/glbcar.js` dagi `GLB_MODELS` ro‘yxatiga qo‘shing.
+Litsenziya talab qilsa, muallifni «Qanday o‘ynash» oynasidagi mualliflar qatoriga yozing.
+
+Mualliflar: «Nexia 2» 3D modeli — uzb_rx7 (https://sketchfab.com/3d-models/nexia-2-7356a1413a384f7f8290ddfbdee11a7f), CC BY 4.0, o‘yin uchun soddalashtirilgan.

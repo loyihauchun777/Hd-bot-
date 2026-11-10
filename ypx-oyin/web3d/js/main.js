@@ -5,6 +5,8 @@ import { Traffic } from './traffic.js';
 import { makeOfficer, animateOfficer, makeCar, makeMarker } from './models.js';
 import { Inspection } from './inspect.js';
 import { makeYpxCar } from './ypxcar.js';
+import { loadGlbModels } from './glbcar.js';
+loadGlbModels();
 import { sfx } from './audio.js';
 import { RANKS, SHOP, SHIFT_SECONDS, CAR_TYPES } from './data.js';
 
