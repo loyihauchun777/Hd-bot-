@@ -30,7 +30,7 @@ const CIV_TYPES = CIV_MODELS.map(m => ({ id: m.id, name: m.name, l: m.length, w:
 // how common each model is on Uzbek streets (relative weights); unknown models get 1.5
 const CIV_WEIGHT = { nexia2: 3, cobalt: 3, spark: 3, nexia3: 2.5, nexia: 2.5, damas: 2.5, gentra: 2.5, matiz: 2, onix: 1.5, tracker: 1, malibu: 1 };
 function pickCiv() {
-  const types = CIV_TYPES.filter(t => !t.glb || glbReady(t.id)); // 3D models once loaded
+  const types = CIV_TYPES.filter(t => t.glb ? glbReady(t.id) : !glbReady(t.id)); // 3D model replaces the photo car once loaded
   const total = types.reduce((a, t) => a + (CIV_WEIGHT[t.id] ?? 1.5), 0);
   let r = Math.random() * total;
   for (const t of types) { r -= CIV_WEIGHT[t.id] ?? 1.5; if (r <= 0) return t; }

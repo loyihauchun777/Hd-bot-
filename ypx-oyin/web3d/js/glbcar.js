@@ -1,11 +1,17 @@
 // Full 3D street cars loaded from slimmed GLB models (see tools/slim.mjs).
-// "Nexia 2" model: uzb_rx7 (https://sketchfab.com/uzbek_supra), CC BY 4.0 — credited in the help screen.
+// Models (all CC BY 4.0, credited in the help screen and README):
+//   Nexia 2 — uzb_rx7; Chevrolet Malibu 2022 — slavanik24250794; Chevrolet Damas — own.guest;
+//   Chevrolet Nexia3 Midnight — doniyorgroup (Sketchfab).
 import * as THREE from './three.module.min.js';
 import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
 import { plateTexture } from './models.js';
 
 export const GLB_MODELS = [
-  { id: 'nexia2', name: 'Chevrolet Nexia 2', file: 'models/nexia2.glb', length: 4.48, width: 1.66, height: 1.39, paint: 'carpaint' },
+  { id: 'nexia2', name: 'Chevrolet Nexia 2', file: 'models/nexia2.glb', length: 4.48, width: 1.66, height: 1.39, paint: 'carpaint', glass: ['windowglass'] },
+  { id: 'nexia3', name: 'Chevrolet Nexia 3', file: 'models/nexia3.glb', length: 4.31, width: 1.71, height: 1.505, paint: 'Matte_FFFFFFFF', glass: ['Matte_827F7F7F'],
+    unskew: [0.99124, -0.01391, 0.13134, 0.12391, 0.44202, -0.8884, -0.0457, 0.8969, 0.43988] },
+  { id: 'malibu', name: 'Chevrolet Malibu', file: 'models/malibu.glb', length: 4.93, width: 1.85, height: 1.46, paint: 'malibupaint', glass: ['malibuglass'] },
+  { id: 'damas', name: 'Chevrolet Damas', file: 'models/damas.glb', length: 3.23, width: 1.40, height: 1.90, paint: 'material_3', glass: ['material_5'], flip: true },
 ];
 
 const loaded = {}; // id -> { template, box }
@@ -24,8 +30,20 @@ export function loadGlbModels() {
         g.applyMatrix4(o.matrixWorld);
         g.deleteAttribute('normal');
         g.computeVertexNormals();
-        parts.push(new THREE.Mesh(g, o.material));
+        const m = o.material;
+        const hex = /Matte_([0-9A-F]{2})([0-9A-F]{6})/i.exec(m.name || '');
+        if (hex && !m.map) { // some exporters keep the colour only in the material name
+          m.color.set('#' + hex[2]);
+          const a = parseInt(hex[1], 16) / 255;
+          if (a < 0.99) { m.transparent = true; m.opacity = Math.max(0.35, a); }
+        }
+        parts.push(new THREE.Mesh(g, m));
       });
+      if (M.unskew) { // parts were exported with a common skewed rotation R: apply Rx(-90°)·Rᵀ
+        const R = new THREE.Matrix4().setFromMatrix3(new THREE.Matrix3().fromArray(M.unskew));
+        const fix = new THREE.Matrix4().makeRotationX(-Math.PI / 2).multiply(R.clone().transpose());
+        parts.forEach(p => p.geometry.applyMatrix4(fix));
+      }
       const box = new THREE.Box3();
       parts.forEach(p => box.expandByObject(p));
       const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
@@ -35,7 +53,8 @@ export function loadGlbModels() {
       const tpl = new THREE.Group();
       for (const p of parts) {
         p.geometry.translate(-centre.x, -box.min.y, -centre.z);
-        if (alongZ) p.geometry.rotateY(M.frontSign === -1 ? -Math.PI / 2 : Math.PI / 2);
+        if (alongZ) p.geometry.rotateY(Math.PI / 2);
+        if (M.flip) p.geometry.rotateY(Math.PI); // model was built facing the other way
         p.geometry.scale(s, s, s);
         p.castShadow = true;
         tpl.add(p);
@@ -79,7 +98,7 @@ export function makeGlbCar(id, opts = {}) {
     const name = p.material.name || '';
     let mat = p.material;
     if (name === M.paint) mat = paintFor(p.material, tint);
-    else if (name === 'windowglass' && opts.tinted) mat = new THREE.MeshPhongMaterial({ color: 0x050608, shininess: 120 });
+    else if ((M.glass || []).includes(name) && opts.tinted) mat = new THREE.MeshPhongMaterial({ color: 0x050608, shininess: 120 });
     const m = new THREE.Mesh(p.geometry, mat);
     m.castShadow = true;
     body.add(m);

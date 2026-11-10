@@ -1,27 +1,39 @@
-// usage: npm i @gltf-transform/core@4.1.1 @gltf-transform/functions@4.1.1 @gltf-transform/extensions@4.1.1 meshoptimizer@0.22.0
-//        node slim.mjs input.glb output.glb 0.03 0.01   (keep ratio, max error)
-// Slim a heavy car GLB for mobile: drop hidden/tiny parts, merge by material, simplify.
-import { NodeIO } from '@gltf-transform/core';
+// setup: npm i @gltf-transform/core@4.1.1 @gltf-transform/functions@4.1.1 @gltf-transform/extensions@4.1.1 meshoptimizer@0.22.0 sharp
+// Slim a heavy car GLB for the game.
+// usage: node slim2.mjs in.glb out.glb '{"ratio":0.05,"error":0.01,"dropNode":"interior","dropMat":"leather","keepUV":false,"tex":512}'
+import { NodeIO, PropertyType } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { dedup, weld, simplify, join, flatten, prune, quantize, resample } from '@gltf-transform/functions';
+import { dedup, weld, simplify, join, flatten, prune, textureCompress } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
-const [,, inp, out, ratioArg, errArg] = process.argv;
+import sharp from 'sharp';
+const [,, inp, out, cfgArg] = process.argv;
+const C = { ratio: 0.05, error: 0.01, dropNode: '', dropMat: '', keepUV: false, tex: 512, ...JSON.parse(cfgArg || '{}') };
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const doc = await io.read(inp);
 const root = doc.getRoot();
-const DROP = /interior|seat|steering|dashboard|brake|caliper|nuts|support|underbody|reflector|lamp_part|_part_mattemetal|xenon|wiper|engine|exhaust|pedal|belt|speaker|_parts_mattemetal/i;
-let dropped = 0;
-for (const node of root.listNodes()) {
-  if (DROP.test(node.getName())) { node.dispose(); dropped++; }
+let before = 0;
+for (const m of root.listMeshes()) for (const p of m.listPrimitives()) before += (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3;
+if (C.dropNode) { const re = new RegExp(C.dropNode, 'i'); for (const n of root.listNodes()) if (re.test(n.getName())) n.dispose(); }
+if (C.dropMat) {
+  const re = new RegExp(C.dropMat, 'i');
+  for (const m of root.listMeshes()) for (const p of m.listPrimitives()) if (re.test(p.getMaterial()?.getName() || '')) p.dispose();
 }
-// no textures in this model: drop UVs and normals so the simplifier is not stopped by their seams
 for (const m of root.listMeshes()) for (const p of m.listPrimitives()) {
-  for (const sem of p.listSemantics()) if (sem !== 'POSITION') p.setAttribute(sem, null);
+  const usesTex = !!p.getMaterial()?.getBaseColorTexture();
+  for (const sem of p.listSemantics()) {
+    if (sem === 'POSITION') continue;
+    if (C.keepUV && usesTex && sem === 'TEXCOORD_0') continue;
+    p.setAttribute(sem, null);
+  }
 }
-await doc.transform(flatten(), dedup(), join({ keepNamed: false }), weld({ tolerance: 0.0005 }),
-  simplify({ simplifier: MeshoptSimplifier, ratio: Number(ratioArg || 0.03), error: Number(errArg || 0.004), lockBorder: false }), prune());
+// textures: drop the ones no remaining material samples as base colour; shrink the rest
+for (const mat of root.listMaterials()) {
+  mat.setNormalTexture(null); mat.setOcclusionTexture(null); mat.setMetallicRoughnessTexture(null); mat.setEmissiveTexture(null);
+}
+await doc.transform(flatten(), dedup({ propertyTypes: [PropertyType.ACCESSOR, PropertyType.MESH, PropertyType.TEXTURE] }), join({ keepNamed: false }), weld({ tolerance: 0.0005 }),
+  simplify({ simplifier: MeshoptSimplifier, ratio: C.ratio, error: C.error, lockBorder: false }), prune(),
+  textureCompress({ encoder: sharp, targetFormat: 'jpeg', resize: [C.tex, C.tex], quality: 80 }));
 let tris = 0;
-for (const m of root.listMeshes()) for (const p of m.listPrimitives()) tris += (p.getIndices() ? p.getIndices().getCount() : p.getAttribute('POSITION').getCount()) / 3;
-// (no quantize: the game re-bakes transforms, which needs float positions)
+for (const m of root.listMeshes()) for (const p of m.listPrimitives()) tris += (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3;
 await io.write(out, doc);
-console.log('dropped nodes', dropped, 'triangles', tris, 'materials', root.listMaterials().map(m => m.getName()).join(','));
+console.log('triangles', before, '->', tris, '| materials', root.listMaterials().map(m => m.getName()).join(','), '| textures', root.listTextures().length);
