@@ -21,6 +21,8 @@ export const GLB_MODELS = [
 ];
 
 const loaded = {}; // id -> { template, box }
+const readyCbs = [];
+export const onGlbLoaded = cb => readyCbs.push(cb);
 const loader = new GLTFLoader();
 
 export function loadGlbModels() {
@@ -78,6 +80,7 @@ export function loadGlbModels() {
         tpl.add(p);
       }
       loaded[M.id] = { template: tpl, model: M };
+      readyCbs.forEach(cb => cb(M.id));
     }, undefined, e => console.warn('GLB load failed', M.file, e));
   }
 }
@@ -137,5 +140,116 @@ export function makeGlbCar(id, opts = {}) {
   body.add(sig);
   g.userData = { wheels: [], body, signal: sig,
     lampPos: { fx: M.length / 2 + 0.03, fy: M.lampY ?? 0.62, rx: -M.length / 2 - 0.03, ry: M.tailY ?? 0.78, hz: M.width / 2 - 0.3 } };
+  return g;
+}
+
+// ---------- YPX patrol car: a GLB body (Malibu) wearing the YPX drawing's livery ----------
+const texLoader = new THREE.TextureLoader();
+const liveryTex = {};
+function ltex(name) {
+  if (!liveryTex[name]) {
+    const t = texLoader.load(`textures/${name}.jpg`);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    liveryTex[name] = t;
+  }
+  return liveryTex[name];
+}
+
+const liveryGeo = {};
+// Re-lay the paint mesh by facing direction and project the drawing's views onto it:
+// sides <- side view, top <- top view (remapped so hood/roof/trunk line up), nose/tail <- front/rear views.
+function liveryGeometry(id, geo, L, W, H, topMap) {
+  if (liveryGeo[id]) return liveryGeo[id];
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const pos = g.attributes.position, nor = g.attributes.normal;
+  const [fs, ft] = topMap || [[0, 1], [0, 1]];
+  const topU = f => {
+    for (let i = 1; i < fs.length; i++) if (f <= fs[i]) return ft[i - 1] + (ft[i] - ft[i - 1]) * (f - fs[i - 1]) / (fs[i] - fs[i - 1]);
+    return 1;
+  };
+  const buckets = [[], [], [], [], []]; // sideL(-z), sideR(+z), top, front, rear
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    n.set(0, 0, 0);
+    for (let k = 0; k < 3; k++) n.add(new THREE.Vector3().fromBufferAttribute(nor, i + k));
+    n.normalize();
+    const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+    let b;
+    if (az >= ax && az >= ay * 0.8) b = n.z < 0 ? 0 : 1;
+    else if (ay >= ax) b = 2;          // roof, hood, trunk (and the underside, unseen)
+    else b = n.x > 0 ? 3 : 4;
+    buckets[b].push(i);
+  }
+  const P = [], N = [], U = [], groups = [];
+  const v = new THREE.Vector3(), vn = new THREE.Vector3();
+  buckets.forEach((tris, b) => {
+    const start = P.length / 3;
+    for (const i of tris) for (let k = 0; k < 3; k++) {
+      v.fromBufferAttribute(pos, i + k); vn.fromBufferAttribute(nor, i + k);
+      P.push(v.x, v.y, v.z); N.push(vn.x, vn.y, vn.z);
+      const fy = Math.min(1, Math.max(0, v.y / H));
+      if (b === 0) U.push(0.5 - v.x / L, fy);                 // left side: drawing as is (front at the image's left)
+      else if (b === 1) U.push(0.5 + v.x / L, fy);            // right side: mirrored drawing with redrawn lettering
+      else if (b === 2) U.push(topU(0.5 - v.x / L), 0.5 + v.z / W);
+      else if (b === 3) U.push(0.5 - v.z / W, fy);
+      else U.push(0.5 + v.z / W, fy);
+    }
+    groups.push([start, P.length / 3 - start, b]);
+  });
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+  for (const [s0, c, b] of groups) if (c) out.addGroup(s0, c, b);
+  return (liveryGeo[id] = out);
+}
+
+// prefix: texture set of the drawing (e.g. 'ypx2'); topMap: drawing's hood/roof/trunk alignment
+export function makePatrolGlb(id, prefix, topMap) {
+  const { template, model: M } = loaded[id];
+  const box = new THREE.Box3().setFromObject(template);
+  const L = box.max.x - box.min.x, W = box.max.z - box.min.z, H = box.max.y;
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const paintMat = name => new THREE.MeshPhongMaterial({ map: ltex(name), shininess: 90, specular: 0x666666 });
+  const livery = [paintMat(prefix + '_side_l'), paintMat(prefix + '_side_r'), paintMat(prefix + '_top'),
+    paintMat(prefix + '_front'), paintMat(prefix + '_rear')];
+  for (const p of template.children) {
+    if ((p.material.name || '') === M.paint) {
+      const m = new THREE.Mesh(liveryGeometry(id + prefix, p.geometry, L, W, H, topMap), livery);
+      m.castShadow = true; body.add(m);
+    } else {
+      const m = new THREE.Mesh(p.geometry, p.material); m.castShadow = true; body.add(m);
+    }
+  }
+  // light bar: blue | grey | red
+  const bar = new THREE.Group();
+  bar.position.set(-0.15 * L, H + 0.02, 0);
+  bar.add(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, W * 0.7), new THREE.MeshLambertMaterial({ color: 0x222222 })));
+  const seg = W * 0.24;
+  const blue = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.11, seg), new THREE.MeshBasicMaterial({ color: 0x2050ff }));
+  const grey = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.11, seg * 0.8), new THREE.MeshLambertMaterial({ color: 0xc8ccd2 }));
+  const red = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.11, seg), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+  blue.position.set(0, 0.06, seg * 0.9); grey.position.y = 0.06; red.position.set(0, 0.06, -seg * 0.9);
+  bar.add(blue, grey, red);
+  const glowT = shadowTexture();
+  const glow = (color, z) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowT, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.scale.set(1.2, 1.2, 1); sp.position.set(0, 0.08, z); bar.add(sp); return sp;
+  };
+  const glowBlue = glow(0x3a6bff, seg * 0.9), glowRed = glow(0xff3030, -seg * 0.9);
+  body.add(bar);
+  const pm = new THREE.MeshBasicMaterial({ map: plateTexture('01 YPX 777') });
+  const fp = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.115), pm);
+  fp.rotation.y = Math.PI / 2; fp.position.set(box.max.x + 0.02, 0.42, 0); body.add(fp);
+  const bp = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.115), pm);
+  bp.rotation.y = -Math.PI / 2; bp.position.set(box.min.x - 0.02, 0.55, 0); body.add(bp);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(L * 1.08, W * 1.45),
+    new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false, opacity: 0.55, color: 0x000000 }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.012;
+  g.add(shadow);
+  const signal = new THREE.Object3D(); signal.visible = false; body.add(signal);
+  g.userData = { lights: { red, blue, glowRed, glowBlue }, wheels: [], body, signal };
   return g;
 }

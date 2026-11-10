@@ -5,7 +5,8 @@ import { Traffic } from './traffic.js';
 import { makeOfficer, animateOfficer, makeCar, makeMarker } from './models.js';
 import { Inspection } from './inspect.js';
 import { makeYpxCar } from './ypxcar.js';
-import { loadGlbModels } from './glbcar.js';
+import { loadGlbModels, glbReady, onGlbLoaded, makePatrolGlb } from './glbcar.js';
+import { YPX_CAR2 } from './ypxcar2_data.js';
 import { setLamps } from './lamps.js';
 loadGlbModels();
 import { sfx } from './audio.js';
@@ -62,12 +63,15 @@ function buildPatrol() {
   const def = SHOP.car.find(c => c.id === save.car) || SHOP.car[0];
   const type = CAR_TYPES.find(t => t.id === def.type);
   // the default patrol sedan is built from the user's YPX drawing
-  patrol = def.ypx ? makeYpxCar() : makeCar(type, { color: 0xf4f6fa, police: true, plate: '01 YPX 777' });
+  // YPX sedan: Malibu 3D body wearing the YPX drawing's livery (drawing-built car until the model loads)
+  if (def.ypx && glbReady('malibu')) patrol = makePatrolGlb('malibu', 'ypx2', YPX_CAR2.topMap);
+  else patrol = def.ypx ? makeYpxCar() : makeCar(type, { color: 0xf4f6fa, police: true, plate: '01 YPX 777' });
   patrol.position.set(-7.5, 0, ROAD.bayZ);
   scene.add(patrol);
 }
 buildOfficer();
 buildPatrol();
+onGlbLoaded(id => { if (id === 'malibu') buildPatrol(); });
 const marker = makeMarker();
 scene.add(marker);
 marker.visible = false;
