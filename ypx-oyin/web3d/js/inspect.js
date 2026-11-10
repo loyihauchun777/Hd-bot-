@@ -236,13 +236,37 @@ export class Inspection {
 
   // ---------- vehicle check ----------
   render_car() {
+    this.game.setCamMode('orbit', this.car);
     $('inspBody').innerHTML = `
-      <p>🔍 Mashinani har tomondan ko‘ring (chap tomonda kamerani surish mumkin). Nosozlikni topsangiz belgilang.</p>
-      ${this.flagRow('fara', 'Faralardan biri singan / ishlamaydi')}
+      <p>💡 Haydovchi barcha chiroqlarni yoqdi. Mashinani aylanib ko‘ring: <b>yonmayotgan fara</b> — nosoz.
+      Chap tomonda kamerani surib burish mumkin.</p>
+      ${this.flagRow('fara', 'Faralardan biri yonmayapti (nosoz)')}
       ${this.flagRow('shina', 'Shinalardan biri yeyilgan')}
+      <button id="btnTrunk" class="primary" style="width:100%;margin-top:8px">🧳 Bagajni ochish</button>
       <p class="muted">Ko‘zga tashlanadigan qoidabuzarliklar (tonirovka, raqam yo‘qligi) radar orqali avtomatik qayd etilgan.</p>`;
     this.bindFlags();
+    $('btnTrunk').onclick = () => { sfx.click(); this.render_trunk(); };
     if (!this.carLineSaid) { this.carLineSaid = true; this.script([['i', 'I9']]); }
+  }
+
+  // ---------- trunk: mandatory kit ----------
+  render_trunk() {
+    this.game.setCamMode('trunk', this.car);
+    const k = this.car.prof.kit || { otochirgich: true, aptechka: true, belgi: true, zaxira: true };
+    const slot = (have, icon, name) => `<div class="slot ${have ? '' : 'empty'}">${have ? `<span>${icon}</span>${name}` : `<span>▫️</span>bo‘sh joy`}</div>`;
+    $('inspBody').innerHTML = `
+      <p>🧳 Bagaj ochildi. Majburiy jihozlar: <b>o‘t o‘chirgich, aptechka, avariya to‘xtash belgisi</b>.</p>
+      <div class="trunk">
+        ${slot(k.otochirgich, '🧯', 'O‘t o‘chirgich')}
+        ${slot(k.aptechka, '🩹', 'Aptechka')}
+        ${slot(k.belgi, '⚠️', 'Avariya belgisi')}
+        ${slot(k.zaxira, '🛞', 'Zaxira g‘ildirak')}
+      </div>
+      <p class="muted">Zaxira g‘ildirak majburiy emas.</p>
+      ${this.flagRow('jihoz', 'Majburiy jihoz yetishmaydi')}
+      <button id="btnBackCar" style="width:100%;margin-top:8px">⬅ Mashinaga qaytish</button>`;
+    this.bindFlags();
+    $('btnBackCar').onclick = () => { sfx.click(); this.render_car(); };
   }
 
   // ---------- bribe ----------

@@ -171,6 +171,8 @@ export function makeCivCar(D, opts = {}) {
   sig.position.set(D.length / 2 - 0.3, D.plateFront + 0.2, W / 2 + 0.02);
   sig.visible = false;
   body.add(sig);
-  g.userData = { wheels, body, signal: sig };
+  const fy = D.plateFront + 0.2, ry = D.plateRear + 0.22;
+  const lampPos = { fx: edgeX(D.poly, fy, 1) + 0.03, fy, rx: edgeX(D.poly, ry, -1) - 0.03, ry, hz: W / 2 - 0.28 };
+  g.userData = { wheels, body, signal: sig, lampPos };
   return g;
 }

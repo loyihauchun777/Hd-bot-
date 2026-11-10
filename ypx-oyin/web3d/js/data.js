@@ -16,6 +16,7 @@ export const VIOLATIONS = {
   mast:      { name: 'Mast holda transport boshqarish', minor: false },
   fara:      { name: 'Fara nosoz', minor: true },
   shina:     { name: 'Shina yeyilgan', minor: true },
+  jihoz:     { name: 'Majburiy jihoz yo‘q (o‘t o‘chirgich / aptechka / avariya belgisi)', minor: true },
   pora:      { name: 'Pora taklif qilish', minor: false },
 };
 

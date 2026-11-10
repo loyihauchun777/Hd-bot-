@@ -99,3 +99,11 @@ button:disabled { opacity:.45; }
 .faces { display:flex; gap:10px; justify-content:center; margin:8px 0; text-align:center; font-size:11px; color:var(--muted); }
 .faces canvas { width:56px; height:66px; border-radius:8px; display:block; margin:0 auto 3px; }
 .loading { text-align:center; padding:20px; color:var(--muted); }
+
+.trunk { display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#1a1d22; border:3px solid #3a3f47; border-radius:10px; padding:10px; margin:8px 0; }
+.slot { background:#2a2f37; border-radius:8px; padding:10px 6px; text-align:center; font-size:12.5px; min-height:64px; }
+.slot span { display:block; font-size:26px; margin-bottom:2px; }
+.slot.empty { background:transparent; border:2px dashed #555c66; color:var(--muted); }
+#limitSign { position:fixed; left:14px; top:64px; width:58px; height:58px; border-radius:50%; background:#fff; border:7px solid #d42a2a;
+  color:#111; font:800 22px system-ui,sans-serif; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px #0008; pointer-events:none; z-index:5; }
+#limitSign small { position:absolute; bottom:-18px; font-size:10px; color:#fff; text-shadow:0 1px 2px #000; white-space:nowrap; }

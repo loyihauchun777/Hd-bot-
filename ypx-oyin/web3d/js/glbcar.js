@@ -6,17 +6,18 @@
 // Chevrolet Tracker: model supplied by the owner (converted via imagetostl.com).
 import * as THREE from './three.module.min.js';
 import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+import { toCreasedNormals } from './jsm/utils/BufferGeometryUtils.js';
 import { plateTexture } from './models.js';
 
 export const GLB_MODELS = [
   { id: 'nexia2', name: 'Chevrolet Nexia 2', file: 'models/nexia2.glb', length: 4.48, width: 1.66, height: 1.39, paint: 'carpaint', glass: ['windowglass'] },
-  { id: 'nexia3', name: 'Chevrolet Nexia 3', file: 'models/nexia3.glb', length: 4.31, width: 1.71, height: 1.505, paint: 'Matte_FFFFFFFF', glass: ['Matte_827F7F7F'],
+  { id: 'nexia3', name: 'Chevrolet Nexia 3', file: 'models/nexia3.glb', length: 4.31, width: 1.71, height: 1.505, paint: 'Matte_FFFFFFFF', glass: ['Matte_827F7F7F'], matColor: { Matte_FFBBAD4C: 0xdfe6ee },
     unskew: [0.99124, -0.01391, 0.13134, 0.12391, 0.44202, -0.8884, -0.0457, 0.8969, 0.43988] },
   { id: 'matiz', name: 'Daewoo Matiz', file: 'models/matiz.glb', length: 3.50, width: 1.50, height: 1.485, paint: 'Car_Paint', glass: ['Car_windshield_glass'], flip: true },
   { id: 'spark', name: 'Chevrolet Spark', file: 'models/spark.glb', length: 3.64, width: 1.60, height: 1.52, paint: 'Chevrolet_Beat_2010_carpaint', glass: ['Chevrolet_Beat_2010_greenglass', 'Chevrolet_Beat_2010_clearglass'] },
   { id: 'tracker', name: 'Chevrolet Tracker', file: 'models/tracker.glb', length: 4.27, width: 1.79, height: 1.63, paint: 'ID986', glass: ['ID486'] },
   { id: 'malibu', name: 'Chevrolet Malibu', file: 'models/malibu.glb', length: 4.93, width: 1.85, height: 1.46, paint: 'malibupaint', glass: ['malibuglass'] },
-  { id: 'damas', name: 'Chevrolet Damas', file: 'models/damas.glb', length: 3.23, width: 1.40, height: 1.90, paint: 'material_3', glass: ['material_5'], flip: true },
+  { id: 'damas', name: 'Chevrolet Damas', file: 'models/damas.glb', length: 3.23, width: 1.40, height: 1.90, lampY: 0.75, tailY: 0.7, paint: 'material_3', glass: ['material_5'], flip: true },
 ];
 
 const loaded = {}; // id -> { template, box }
@@ -31,14 +32,15 @@ export function loadGlbModels() {
       const parts = [];
       root.traverse(o => {
         if (!o.isMesh) return;
-        const g = o.geometry.clone();
+        let g = o.geometry.clone();
         g.applyMatrix4(o.matrixWorld);
         g.deleteAttribute('normal');
-        g.computeVertexNormals();
+        // smooth panels but keep sharp edges (bumpers, pillars, lamp rims) crisp
+        g = toCreasedNormals(g, Math.PI / 5);
         const m = o.material;
         const hex = /Matte_([0-9A-F]{2})([0-9A-F]{6})/i.exec(m.name || '');
         if (hex && !m.map) { // some exporters keep the colour only in the material name
-          m.color.set('#' + hex[2]);
+          m.color.set(M.matColor && M.matColor[m.name] !== undefined ? M.matColor[m.name] : '#' + hex[2]);
           const a = parseInt(hex[1], 16) / 255;
           if (a < 0.99) { m.transparent = true; m.opacity = Math.max(0.35, a); }
         }
@@ -133,6 +135,7 @@ export function makeGlbCar(id, opts = {}) {
   const sig = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({ color: 0xffa000 }));
   sig.position.set(M.length / 2 - 0.3, 0.65, M.width / 2 + 0.02); sig.visible = false;
   body.add(sig);
-  g.userData = { wheels: [], body, signal: sig };
+  g.userData = { wheels: [], body, signal: sig,
+    lampPos: { fx: M.length / 2 + 0.03, fy: M.lampY ?? 0.62, rx: -M.length / 2 - 0.03, ry: M.tailY ?? 0.78, hz: M.width / 2 - 0.3 } };
   return g;
 }

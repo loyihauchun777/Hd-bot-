@@ -251,6 +251,7 @@ export function makeCar(type, opts = {}) {
   sig.visible = false;
   body.add(sig);
   g.userData.signal = sig;
+  g.userData.lampPos = { fx: l / 2 + 0.05, fy: wheelY + lowH * 0.65, rx: -l / 2 - 0.05, ry: wheelY + lowH * 0.7, hz: w / 2 - 0.25 };
   g.userData.wheels = wheels;
   g.userData.body = body;
   return g;

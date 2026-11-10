@@ -6,6 +6,7 @@ import { makeOfficer, animateOfficer, makeCar, makeMarker } from './models.js';
 import { Inspection } from './inspect.js';
 import { makeYpxCar } from './ypxcar.js';
 import { loadGlbModels } from './glbcar.js';
+import { setLamps } from './lamps.js';
 loadGlbModels();
 import { sfx } from './audio.js';
 import { RANKS, SHOP, SHIFT_SECONDS, CAR_TYPES } from './data.js';
@@ -100,7 +101,13 @@ function toast(msg, cls = 'info') {
 // ---------- inspection hooks ----------
 const game = {
   toast,
-  setCamMode(mode, car) { G.camMode = mode; G.camCar = car || G.camCar; if (mode === 'orbit') G.orbitA = Math.PI * 0.35; officer.visible = mode !== 'orbit'; },
+  setCamMode(mode, car) {
+    G.camMode = mode; G.camCar = car || G.camCar;
+    if (mode === 'orbit' || mode === 'trunk') G.orbitA = mode === 'trunk' ? Math.PI * 0.8 : Math.PI * 0.15;
+    officer.visible = mode !== 'orbit' && mode !== 'trunk';
+    // vehicle check: driver switches all lights on, a broken headlight stays dark
+    if (G.camCar) setLamps(G.camCar.mesh, mode === 'orbit' || mode === 'trunk');
+  },
   inspectionDone(car, res) {
     const s = G.shift;
     s.done++;
@@ -233,6 +240,7 @@ function doTalk() {
 // ---------- UI helpers ----------
 function showControls(on) {
   $('controls').classList.toggle('hidden', !on);
+  $('limitSign').classList.toggle('hidden', !on); // speed limit always in view while patrolling
   $('hud').classList.toggle('hidden', !(on || G.mode === 'inspect'));
 }
 
@@ -462,6 +470,11 @@ function updateCamera(dt) {
     const c = G.camCar;
     camPos.set(c.x - 2.2, 2.3, c.z + 6.2);
     camLook.set(c.x + 1.8, 1.0, c.z + 0.6);
+    camera.position.lerp(camPos, k);
+  } else if (G.camMode === 'trunk' && G.camCar) {
+    const c = G.camCar;
+    camPos.set(c.x - c.len / 2 - 3.0, 2.7, c.z + 1.0);   // behind the car, looking into the trunk
+    camLook.set(c.x - c.len / 2 + 0.8, 0.6, c.z + 2.1);  // aim right so the car sits left of the panel
     camera.position.lerp(camPos, k);
   } else if (G.camMode === 'orbit' && G.camCar) {
     const c = G.camCar;

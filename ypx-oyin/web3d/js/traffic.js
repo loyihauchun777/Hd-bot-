@@ -1,6 +1,7 @@
 // Traffic simulation: spawning, lane following, traffic light, pull-over and leaving.
 import { makeCar, randomFace, setLight } from './models.js';
 import { makeCivCar } from './civcar.js';
+import { addLamps } from './lamps.js';
 import { CIV_MODELS } from './civdata.js';
 import { GLB_MODELS, glbReady, makeGlbCar } from './glbcar.js';
 import { ROAD } from './world.js';
@@ -67,7 +68,10 @@ function makeProfile(nearSide) {
   if (chance(0.06)) p.hidden.push('rasm');
   if (chance(0.15)) p.hidden.push('sugurta');
   if (chance(0.06) && !p.noPlate) p.hidden.push('texraqam');
-  if (chance(0.12) && !type.civ && !type.glb) { p.hidden.push('fara'); p.brokenLight = true; } // photo cars can't show a broken lamp
+  if (chance(0.12)) { p.hidden.push('fara'); p.brokenLight = true; } // shows as a dead lamp when the lights are switched on
+  // mandatory kit in the trunk: fire extinguisher, first-aid kit, warning triangle (+ spare wheel, not mandatory)
+  p.kit = { otochirgich: !chance(0.1), aptechka: !chance(0.1), belgi: !chance(0.08), zaxira: !chance(0.25) };
+  if (!p.kit.otochirgich || !p.kit.aptechka || !p.kit.belgi) p.hidden.push('jihoz');
   if (chance(0.1)) { p.hidden.push('shina'); p.baldTire = true; }
   if (chance(0.1)) {
     p.drunk = true; p.hidden.push('mast'); p.face.drunk = true;
@@ -123,6 +127,7 @@ export class Traffic {
       color: prof.color, tinted: prof.tinted, noPlate: prof.noPlate, plate: prof.plate,
       brokenLight: prof.brokenLight, baldTire: prof.baldTire, driverSkin: parseInt(prof.face.skin.slice(1), 16),
     });
+    addLamps(mesh, mesh.userData.lampPos, prof.brokenLight ? (Math.random() < 0.5 ? 1 : -1) : 0);
     mesh.rotation.y = dir > 0 ? 0 : Math.PI;
     const car = {
       mesh, prof, lane, dir, x: startX, z: ROAD.laneZ[lane], v: prof.speedKmh / 3.6,
