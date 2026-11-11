@@ -91,23 +91,28 @@ export function stopVoice() {
 }
 
 // Plays audio/<voice>/<id>.mp3; resolves when finished, or after a reading-time fallback if the file is missing.
-export function playVoice(voice, id, text) {
+export function playVoice(voice, id, text, altVoice) {
   stopVoice();
   const fallback = Math.min(4500, 900 + (text || '').length * 45);
   return new Promise(resolve => {
     let done = false;
     const finish = () => { if (!done) { done = true; resolve(); } };
-    const src = `audio/${voice}/${id}.mp3`;
-    let a = voiceCache.get(src);
-    if (a === null) { setTimeout(finish, fallback); return; } // known missing
-    if (!a) { a = new Audio(src); a.preload = 'auto'; voiceCache.set(src, a); }
-    current = a;
-    a.currentTime = 0;
-    a.muted = muted;
-    a.onended = finish;
-    a.onerror = () => { voiceCache.set(src, null); setTimeout(finish, fallback); };
-    const p = a.play();
-    if (p && p.catch) p.catch(() => setTimeout(finish, fallback));
+    // try the speaker's own voice, then altVoice (so a line still sounds until every voice is recorded)
+    const tryPlay = (v, next) => {
+      const src = `audio/${v}/${id}.mp3`;
+      let a = voiceCache.get(src);
+      if (a === null) { next(); return; } // known missing
+      if (!a) { a = new Audio(src); a.preload = 'auto'; voiceCache.set(src, a); }
+      current = a;
+      a.currentTime = 0;
+      a.muted = muted;
+      a.onended = finish;
+      a.onerror = () => { voiceCache.set(src, null); next(); };
+      const p = a.play();
+      if (p && p.catch) p.catch(() => { if (a.error) return; setTimeout(finish, fallback); });
+    };
+    const silent = () => setTimeout(finish, fallback);
+    tryPlay(voice, altVoice && altVoice !== voice ? () => tryPlay(altVoice, silent) : silent);
     setTimeout(finish, 9000); // safety
   });
 }

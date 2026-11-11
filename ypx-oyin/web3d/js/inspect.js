@@ -47,7 +47,7 @@ export class Inspection {
     $('bubble').innerHTML = `<span class="who">${name}:</span>${text}`;
     const voice = who === 'i' ? VOICES.inspector : VOICES.drivers[p.voice];
     const token = ++this.sayToken;
-    await playVoice(voice, id, text);
+    await playVoice(voice, id, text, who === 'i' ? null : VOICES.drivers[0]);
     return token === this.sayToken;
   }
 
