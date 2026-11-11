@@ -56,6 +56,7 @@ function buildOfficer() {
   const rot = officer ? officer.rotation.y : Math.PI;
   if (officer) scene.remove(officer);
   officer = makeOfficer(uniformDef());
+  officer.scale.setScalar(0.84); // about 1.8 m with the cap, in proportion to the cars
   officer.traverse(o => { if (o.isMesh) o.castShadow = true; });
   officer.position.copy(pos);
   officer.rotation.y = rot;
@@ -248,7 +249,7 @@ function doTalk() {
   showControls(false);
   marker.visible = false;
   // stand by the passenger door, facing the car
-  officer.position.set(G.current.x + 0.4, 0.15, G.current.z + 1.7);
+  officer.position.set(G.current.x + 0.4, 0, G.current.z + 1.7);
   officer.rotation.y = Math.PI;
   inspection.open(G.current);
 }
@@ -302,7 +303,7 @@ $('btnStart').onclick = () => {
   traffic.prefill();
   newShift();
   G.mode = 'play'; G.current = null; G.yaw = 0; G.pitch = 0.32;
-  officer.position.set(0, 0.15, 9.6); officer.rotation.y = Math.PI;
+  officer.position.set(0, 0, 9.6); officer.rotation.y = Math.PI;
   showControls(true);
   updateHud();
   toast(`Smena ${pad2(G.shift.startHour)}:00, ${WEATHER_NAME[G.shift.weather]}. Reja: ${G.shift.quota} ta to‘g‘ri qaror`, 'info');
@@ -467,6 +468,8 @@ function updatePlayer(dt) {
   p.x += mvx * dt; p.z += mvz * dt;
   p.x = Math.max(-45, Math.min(40, p.x));
   p.z = Math.max(7.3, Math.min(12.8, p.z));
+  // stand on the asphalt in the bay / road, on the kerb elsewhere
+  p.y = (p.z < 10 && p.x > ROAD.bayFrom && p.x < ROAD.bayTo) || p.z < 7.05 ? 0 : 0.15;
   for (const b of boxes()) {
     const dx = p.x - b.x, dz = p.z - b.z;
     const ox = b.hx + 0.3 - Math.abs(dx), oz = b.hz + 0.3 - Math.abs(dz);
