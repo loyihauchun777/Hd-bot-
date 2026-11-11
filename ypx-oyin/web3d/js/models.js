@@ -489,3 +489,70 @@ function addPoliceLivery(g, body, d) {
   body.add(bar);
   g.userData.lights = { red, blue };
 }
+
+// ---------- pedestrians ----------
+export function makePed(o = {}) {
+  const g = new THREE.Group();
+  const skin = mat(o.skin ?? 0xd9a77c), top = mat(o.top ?? 0x3a6ea5), bottom = mat(o.bottom ?? 0x2b2f3a);
+  const legL = new THREE.Group(), legR = new THREE.Group();
+  for (const [leg, x] of [[legL, -0.11], [legR, 0.11]]) {
+    leg.add(box(0.17, 0.8, 0.19, bottom, 0, -0.4, 0));
+    leg.add(box(0.19, 0.1, 0.28, mat(0x1a1a1a), 0, -0.82, 0.04));
+    leg.position.set(x, 0.87, 0); g.add(leg);
+  }
+  if (o.dress) g.add(box(0.5, 0.75, 0.34, top, 0, 0.75, 0)); // long dress over the legs
+  g.add(box(0.46, 0.58, 0.26, top, 0, 1.17, 0));
+  const armL = new THREE.Group(), armR = new THREE.Group();
+  for (const [arm, x] of [[armL, -0.31], [armR, 0.31]]) {
+    arm.add(box(0.13, 0.55, 0.14, top, 0, -0.26, 0)); arm.add(box(0.11, 0.1, 0.11, skin, 0, -0.57, 0));
+    arm.position.set(x, 1.42, 0); g.add(arm);
+  }
+  g.add(box(0.27, 0.29, 0.27, skin, 0, 1.62, 0));
+  if (o.scarf) g.add(box(0.31, 0.2, 0.31, mat(o.scarf), 0, 1.72, -0.01));
+  else if (o.doppi) g.add(box(0.26, 0.09, 0.26, mat(0x1a1a1a), 0, 1.81, 0));
+  else g.add(box(0.29, 0.1, 0.29, mat(o.hair ?? 0x1a1410), 0, 1.79, -0.01));
+  if (o.bag) g.add(box(0.1, 0.26, 0.3, mat(o.bag), 0.4, 0.95, 0));
+  g.userData.parts = { legL, legR, armL, armR };
+  return g;
+}
+
+export function animatePed(ped, t, speed) {
+  const p = ped.userData.parts, sw = Math.sin(t * (5 + speed * 2.4)) * 0.55 * Math.min(1, speed);
+  p.legL.rotation.x = sw; p.legR.rotation.x = -sw; p.armL.rotation.x = -sw * 0.8; p.armR.rotation.x = sw * 0.8;
+}
+
+// ---------- tow truck (evakuator) ----------
+export function makeTowTruck() {
+  const g = new THREE.Group();
+  const yellow = mat(0xf2b100), dark = mat(0x2a2d33), steel = mat(0x8a9099);
+  // origin at the truck centre, front = +x; flatbed from x=-3.4 to x=1.3
+  g.add(box(6.9, 0.25, 2.1, dark, 0, 0.72, 0));                 // chassis
+  g.add(box(4.8, 0.14, 2.3, steel, -1.05, 0.95, 0));            // bed
+  g.add(box(4.8, 0.3, 0.08, yellow, -1.05, 1.1, 1.15)); g.add(box(4.8, 0.3, 0.08, yellow, -1.05, 1.1, -1.15)); // side rails
+  g.add(box(0.12, 1.0, 2.3, steel, 1.32, 1.45, 0));             // headboard
+  g.add(box(1.9, 1.55, 2.2, yellow, 2.4, 1.6, 0));              // cab
+  g.add(box(0.06, 0.7, 1.9, mat(0x6f8ca8, { transparent: true, opacity: 0.8 }), 3.36, 1.9, 0)); // windshield
+  g.add(box(1.0, 0.7, 2.22, mat(0x6f8ca8, { transparent: true, opacity: 0.8 }), 2.6, 1.9, 0));  // side windows
+  g.add(box(0.14, 0.3, 2.25, dark, 3.4, 0.75, 0));              // bumper
+  const hl = mat(0xfff6c8, { emissive: 0x555533 });
+  g.add(box(0.06, 0.16, 0.34, hl, 3.37, 1.05, 0.78)); g.add(box(0.06, 0.16, 0.34, hl, 3.37, 1.05, -0.78));
+  const wheelGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.3, 14).rotateX(Math.PI / 2);
+  const wheels = [];
+  for (const x of [2.3, -1.7, -2.7]) for (const z of [0.98, -0.98]) {
+    const w = new THREE.Mesh(wheelGeo, mat(0x151515)); w.position.set(x, 0.46, z); w.castShadow = true; g.add(w); wheels.push(w);
+  }
+  // amber beacons
+  const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 1.0), new THREE.MeshBasicMaterial({ color: 0xffa000 }));
+  beacon.position.set(2.4, 2.45, 0); g.add(beacon);
+  // door lettering
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+  const c = cv.getContext('2d'); c.fillStyle = '#1a1a1a'; c.font = 'bold 34px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('EVAKUATOR', 128, 34);
+  const tm = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true });
+  for (const s of [1, -1]) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.38), tm);
+    p.position.set(2.4, 1.15, s * 1.115); if (s < 0) p.rotation.y = Math.PI; g.add(p);
+  }
+  g.userData = { wheels, beacon, bedX: -1.05, bedY: 1.02 };
+  return g;
+}

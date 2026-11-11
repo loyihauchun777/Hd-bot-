@@ -8,6 +8,7 @@ import { makeYpxCar } from './ypxcar.js';
 import { loadGlbModels, glbReady, onGlbLoaded, makePatrolGlb } from './glbcar.js';
 import { YPX_CAR2 } from './ypxcar2_data.js';
 import { setLamps } from './lamps.js';
+import { Pedestrians } from './peds.js';
 import { createEnv, WEATHER_NAME, WEATHER_ICON } from './env.js';
 loadGlbModels();
 import { sfx } from './audio.js';
@@ -45,6 +46,7 @@ const world = buildWorld(scene);
 const traffic = new Traffic(scene);
 traffic.setLights(world.trafficLights);
 const env = createEnv(scene, world);
+const peds = new Pedestrians(scene, traffic);
 
 // ---------- player & patrol car ----------
 let officer = null;
@@ -127,7 +129,8 @@ const game = {
     s.rep += res.rep;
     if (res.correct) s.correct++;
     if (res.bribe) s.bribes.push(res.bribe);
-    if (res.action === 'chetlatish') traffic.tow(car); else traffic.release(car);
+    if (res.action === 'chetlatish') { traffic.tow(car); setTimeout(() => toast('🚛 Evakuator chaqirildi — mashina jarima maydonchasiga olib ketiladi', 'info'), 2300); }
+    else traffic.release(car);
     G.current = null;
     G.mode = 'play';
     showControls(true);
@@ -223,6 +226,7 @@ function doWhistle() {
   sfx.unlock(); sfx.whistle();
   G.pose = 'whistle'; G.poseT = 1.0;
   if (G.current) { toast('Avval to‘xtatilgan mashinani tekshiring', 'info'); return; }
+  if (traffic.tows.some(j => j.phase !== 'leave')) { toast('Evakuator ishlayapti — biroz kuting', 'info'); return; }
   const car = G.target;
   if (!car) { toast('Yaqinda to‘xtatsa bo‘ladigan mashina yo‘q', 'info'); return; }
   if (!traffic.pullOver(car, Math.max(officer.position.x + 6, ROAD.bayFrom + 16))) { toast('Juda yaqin — haydovchi ulgurmadi', 'bad'); return; }
@@ -550,6 +554,7 @@ function frame(now) {
   if (G.paused) { renderer.render(scene, camera); requestAnimationFrame(frame); return; }
   G.t += dt;
   traffic.update(dt, G.t);
+  peds.update(dt, G.t);
   env.hour = gameHour();
   env.update(dt, camera);
   // headlights: on at night and in the rain, and always on the car being inspected

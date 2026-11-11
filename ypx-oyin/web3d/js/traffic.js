@@ -1,5 +1,5 @@
 // Traffic simulation: spawning, lane following, traffic light, pull-over and leaving.
-import { makeCar, randomFace, setLight } from './models.js';
+import { makeCar, randomFace, setLight, makeTowTruck } from './models.js';
 import { makeCivCar } from './civcar.js';
 import { addLamps } from './lamps.js';
 import { CIV_MODELS } from './civdata.js';
@@ -103,11 +103,14 @@ export class Traffic {
     this.spawnNear = 1;
     this.spawnFar = 0.5;
     this.lights = null;
+    this.tows = [];   // tow-truck jobs
   }
 
   setLights(tls) { this.lights = tls; tls.forEach(t => setLight(t, this.light)); }
 
   clear() {
+    for (const j of this.tows) this.scene.remove(j.truck);
+    this.tows = [];
     for (const c of this.cars) this.scene.remove(c.mesh);
     this.cars = [];
   }
@@ -162,6 +165,7 @@ export class Traffic {
       const dir = ROAD.laneDir[lane];
       const laneZ = ROAD.laneZ[lane];
       const inLane = this.cars.filter(c => c.lane === lane && (c.state === 'drive' || (c.state === 'pullover' && Math.abs(c.z - laneZ) < 1.6)))
+        .concat(this.tows.filter(j => j.blocking && lane === 1).map(j => ({ state: 'block', x: j.x, len: 7.2 })))
         .sort((a, b) => (b.x - a.x) * dir); // front-most first
       let aheadRear = Infinity; // progress coordinate of the rear of the car ahead
       for (const c of inLane) {
@@ -208,8 +212,7 @@ export class Traffic {
         c.x += c.v * dt;
         if (c.x > ROAD.bayTo - 6) c.z += Math.sign(ROAD.laneZ[1] - c.z) * Math.min(Math.abs(ROAD.laneZ[1] - c.z), 1.6 * dt);
       } else if (c.state === 'towed') {
-        c.fade -= dt * 0.8;
-        c.mesh.scale.setScalar(Math.max(0.01, c.fade));
+        continue; // moved by its tow job
       }
       c.mesh.position.set(c.x, 0, c.z);
       if (c.state !== 'stopped' && c.state !== 'towed') {
@@ -218,11 +221,12 @@ export class Traffic {
       }
     }
 
+    this.updateTows(dt, t);
     // despawn
     const missed = [];
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const c = this.cars[i];
-      if (Math.abs(c.x) > ROAD.length / 2 || (c.state === 'towed' && c.fade <= 0)) {
+      if (Math.abs(c.x) > ROAD.length / 2 && c.state !== 'towed') {
         this.scene.remove(c.mesh);
         this.cars.splice(i, 1);
       }
@@ -253,5 +257,55 @@ export class Traffic {
   }
 
   release(car) { car.state = 'leaving'; car.v = 0; }
-  tow(car) { car.state = 'towed'; }
+  // A tow truck drives in, stops ahead of the car, winches it onto the bed and leaves.
+  tow(car) {
+    car.state = 'towed';
+    const truck = makeTowTruck();
+    const stopX = car.x + car.len / 2 + 0.9 + 3.45;                      // truck rear just ahead of the car
+    const stopZ = stopX + 3.5 <= ROAD.bayTo - 0.3 ? ROAD.bayZ : 6.1;      // in the bay if it fits, else kerbside
+    const job = { car, truck, phase: 'arrive', x: Math.max(-ROAD.length / 2 + 5, car.x - 75), z: ROAD.laneZ[1], v: 12, stopX, stopZ, t: 0, blocking: false,
+      cx0: car.x, cz0: car.z };
+    this.scene.add(truck);
+    this.tows.push(job);
+    return job;
+  }
+
+  updateTows(dt, t) {
+    for (let i = this.tows.length - 1; i >= 0; i--) {
+      const j = this.tows[i], u = j.truck.userData, c = j.car;
+      u.beacon.material.color.setHex(Math.floor(t * 4) % 2 ? 0xffa000 : 0x553300);
+      if (j.phase === 'arrive') {
+        const dist = j.stopX - j.x;
+        j.v = Math.min(12, Math.max(0.4, Math.sqrt(Math.max(0, dist) * 2 * 2.5)));
+        j.x += j.v * dt;
+        if (dist < 22) j.z += Math.sign(j.stopZ - j.z) * Math.min(Math.abs(j.stopZ - j.z), 1.8 * dt);
+        j.blocking = j.stopZ < 7 && dist < 12;
+        if (dist < 0.1) { j.x = j.stopX; j.z = j.stopZ; j.phase = 'load'; j.t = 0; j.v = 0; }
+      } else if (j.phase === 'load') {
+        j.t += dt;
+        const k = Math.min(1, Math.max(0, (j.t - 0.8) / 4));               // winch after a short pause
+        const e = k * k * (3 - 2 * k);
+        c.x = j.cx0 + (j.x + u.bedX - j.cx0) * e;
+        c.z = j.cz0 + (j.z - j.cz0) * e;
+        c.mesh.position.set(c.x, u.bedY * Math.min(1, e * 1.6), c.z);
+        c.mesh.rotation.z = Math.sin(Math.min(1, e * 1.6) * Math.PI) * 0.12;  // nose up while climbing the ramp
+        if (j.t > 5.6) { j.phase = 'leave'; c.mesh.rotation.z = 0; }
+      } else {
+        j.v = Math.min(j.v + 2.2 * dt, 13);
+        j.x += j.v * dt;
+        j.z += Math.sign(ROAD.laneZ[1] - j.z) * Math.min(Math.abs(ROAD.laneZ[1] - j.z), 1.2 * dt);
+        j.blocking = j.stopZ < 7 && j.v < 6;
+        c.x = j.x + u.bedX; c.z = j.z;
+        c.mesh.position.set(c.x, u.bedY, c.z);
+        if (j.x > ROAD.length / 2) {
+          this.scene.remove(j.truck); this.scene.remove(c.mesh);
+          const k = this.cars.indexOf(c); if (k >= 0) this.cars.splice(k, 1);
+          this.tows.splice(i, 1);
+          continue;
+        }
+      }
+      j.truck.position.set(j.x, 0, j.z);
+      for (const w of u.wheels) w.rotation.z -= j.v * dt / 0.46;
+    }
+  }
 }

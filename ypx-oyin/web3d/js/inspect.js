@@ -53,8 +53,10 @@ export class Inspection {
 
   async script(lines) {
     const token = ++this.scriptToken;
-    for (const [who, id] of lines) {
+    for (const line of lines) {
       if (!this.active || token !== this.scriptToken) return;
+      if (typeof line === 'function') { line(); continue; }
+      const [who, id] = line;
       await this.say(who, id);
       await sleep(150);
     }
@@ -70,6 +72,8 @@ export class Inspection {
     this.action = null;
     this.ownerLineSaid = false;
     this.tabletLoaded = false;
+    this.docsGiven = false;   // documents appear once the driver hands them over
+    this.docSel = 'lic';
     this.otherCar = null;
     this.sayToken = 0; this.scriptToken = 0;
     const p = car.prof;
@@ -79,15 +83,16 @@ export class Inspection {
     $('inspect').classList.remove('hidden');
     this.tab('docs');
     const first = p.road[0];
-    const lines = [['i', 'I1'], ['d', 'D1'], ['d', 'D2']];
+    const handOver = () => { this.docsGiven = true; sfx.click(); if (this.curTab === 'docs' || this.curTab === 'tablet') this['render_' + this.curTab](); };
+    const lines = [['i', 'I1'], ['d', 'D1']];
+    if (!first) lines.push(['i', 'I2']);
+    lines.push(['d', 'D2'], handOver);
     if (first) {
       lines.push(['i', ROAD_LINE[first]]);
       const ex = EXCUSE[first];
       lines.push(['d', ex[Math.floor(Math.random() * ex.length)]]);
-    } else {
-      lines.push(['i', 'I2']);
     }
-    this.script(lines);
+    this.script(lines).then(() => { if (this.active && !this.docsGiven) handOver(); });
   }
 
   close() {
@@ -100,6 +105,7 @@ export class Inspection {
 
   tab(name) {
     if (!this.active) return;
+    if (!this.docsGiven && name !== 'docs') this.docsGiven = true; // player moved on: papers are in hand
     this.curTab = name;
     document.querySelectorAll('#inspTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     this.game.setCamMode(name === 'car' ? 'orbit' : 'talk', this.car);
@@ -131,11 +137,15 @@ export class Inspection {
     const last = rest.join(' ');
     const [model, colour] = d.techModel.replace(')', '').split(' (');
     const boxes = (str, n) => str.padEnd(n).slice(0, n).split('').map(c => `<i>${c}</i>`).join('');
-    $('inspBody').innerHTML = `
-      <div class="today">📅 Bugun: <b>${t}</b> · 🚗 Mashinadagi raqam: <b>${p.noPlate ? 'YO‘Q' : p.plate}</b></div>
-      <div class="card lic">
+    if (!this.docsGiven) {
+      $('inspBody').innerHTML = `<div class="today">📅 Bugun: <b>${t}</b></div>
+        <div class="waitdocs">🤝<br>Haydovchi hujjatlarini uzatishini kuting…</div>`;
+      return;
+    }
+    const cards = {
+      lic: { name: 'Guvohnoma', html: `<div class="card lic">
         <div class="ttl">HAYDOVCHILIK GUVOHNOMASI<small>o‘yin hujjati</small></div>
-        <canvas id="licPhoto" width="96" height="128"></canvas>
+        <canvas class="licPhoto" width="96" height="128"></canvas>
         <div class="flds">
           <div><span>1.</span><b>${last.toUpperCase()}</b></div>
           <div><span>2.</span><b>${first.toUpperCase()}</b></div>
@@ -143,11 +153,9 @@ export class Inspection {
           <div><span>4b.</span><b>${d.licenseUntil}</b></div>
           <div><span>5.</span>AF ${num(7)}</div>
           <div><span>9.</span><b class="cat">B</b></div>
-        </div>
-      </div>
-      ${this.flagRow('guvohnoma', 'Guvohnoma muddati o‘tgan (4b)')}
-      ${this.flagRow('rasm', 'Rasm haydovchiga o‘xshamaydi')}
-      <div class="card tech">
+        </div></div>`,
+        flags: this.flagRow('guvohnoma', 'Guvohnoma muddati o‘tgan (4b)') + this.flagRow('rasm', 'Rasm haydovchiga o‘xshamaydi') },
+      tech: { name: 'Texpasport', html: `<div class="card tech">
         <div class="ttl">TRANSPORT VOSITASINI QAYD ETISH GUVOHNOMASI<small>o‘yin hujjati</small></div>
         <div class="flds">
           <div><span>Davlat raqami</span><b class="plate">${d.techPlate}</b></div>
@@ -155,23 +163,30 @@ export class Inspection {
           <div><span>Rangi</span>${colour || ''}</div>
           <div><span>Egasi</span><b>${d.techOwner}</b></div>
           <div><span>Guvohnoma №</span>AAF ${num(7).split('').reverse().join('')}</div>
-        </div>
-      </div>
-      ${this.flagRow('texraqam', 'Raqam mashinaga mos emas')}
-      ${this.flagRow('egasi', 'Egasi boshqa odam')}
-      <div class="card ins">
+        </div></div>`,
+        flags: this.flagRow('texraqam', 'Raqam mashinaga mos emas') + this.flagRow('egasi', 'Egasi boshqa odam') },
+      ins: { name: 'Sug‘urta', html: `<div class="card ins">
         <div class="ttl">SUG‘URTA POLISI<small>o‘yin hujjati</small></div>
         <div class="pno"><span>№</span><em>${boxes(num(9), 9)}</em></div>
         <div class="until">Amal qiladi: <b>${d.insuranceUntil}</b> gacha</div>
         <div class="l1"><span>Sug‘urtalanuvchi:</span> <b>${d.techOwner}</b></div>
         <div class="l2"><span>Transport vositasi:</span> <b>${model}</b></div>
         <div class="pl"><span>Davlat raqami</span><em>${boxes(d.techPlate.replace(/ /g, ''), 14)}</em></div>
-        <div class="mp">M.O‘.</div><div class="sg">Imzo: <i>~~~~</i></div>
-      </div>
-      ${this.flagRow('sugurta', 'Sug‘urta muddati o‘tgan')}`;
-    drawFace($('licPhoto'), { ...d.licensePhoto, bg: '#dde6f0', drunk: false });
+        <div class="mp">M.O‘.</div><div class="sg">Imzo: <i>~~~~</i></div></div>`,
+        flags: this.flagRow('sugurta', 'Sug‘urta muddati o‘tgan') },
+    };
+    const flagged = { lic: ['guvohnoma', 'rasm'], tech: ['texraqam', 'egasi'], ins: ['sugurta'] };
+    const sel = this.docSel;
+    $('inspBody').innerHTML = `
+      <div class="today">📅 Bugun: <b>${t}</b> · 🚗 Raqam: <b>${p.noPlate ? 'YO‘Q' : p.plate}</b></div>
+      <div class="minis">${Object.entries(cards).map(([k, c]) =>
+        `<div class="mini ${k === sel ? 'sel' : ''}" data-doc="${k}">${c.html}<label>${c.name}${flagged[k].some(f => this.flags.has(f)) ? ' ⚑' : ''}</label></div>`).join('')}</div>
+      <div class="docbig">${cards[sel].html}</div>
+      ${cards[sel].flags}`;
+    $('inspBody').querySelectorAll('.licPhoto').forEach(cv => drawFace(cv, { ...d.licensePhoto, bg: '#dde6f0', drunk: false }));
+    $('inspBody').querySelectorAll('.mini').forEach(m => m.onclick = () => { sfx.click(); this.docSel = m.dataset.doc; this.render_docs(); });
     this.bindFlags();
-    if (d.techOwner !== d.licenseName && !this.ownerLineSaid) { this.ownerLineSaid = true; this.script([['d', 'D14']]); }
+    if (d.techOwner !== d.licenseName && !this.ownerLineSaid && sel === 'tech') { this.ownerLineSaid = true; this.script([['d', 'D14']]); }
   }
 
   // ---------- tablet: compare documents with the YPX database ----------
@@ -182,6 +197,10 @@ export class Inspection {
         <div class="sbar"><span>${clock}</span><span>📶 4G · 🔋 82%</span></div>
         <div class="app"><div class="lg">YPX</div><div><b>Yagona axborot bazasi</b><small>Yo‘l-patrul xizmati · inspektor rejimi</small></div></div>
         ${inner}</div></div>`;
+    if (!this.docsGiven) {
+      $('inspBody').innerHTML = shell('<div class="loading">Avval haydovchidan hujjatlarni oling.</div>');
+      return;
+    }
     if (!this.tabletLoaded) {
       $('inspBody').innerHTML = shell(`<div class="srch"><span>🔎 ${p.noPlate ? d.licenseName : p.plate}</span><span class="muted">qidirilmoqda…</span></div>
         <div class="prog"><i></i></div><div class="loading">Bazaga so‘rov yuborildi</div>`);
@@ -206,27 +225,34 @@ export class Inspection {
     }
     const proxy = d.techOwner !== d.licenseName;
     const head = '<tr><th></th><th>Hujjatda</th><th>Bazada</th></tr>';
+    // the database highlights problems in red (the inspector still has to record them)
+    const licBad = daysFromToday(d.licenseUntil) < 0, insBad = daysFromToday(d.insuranceUntil) < 0;
+    const plateBad = !p.noPlate && p.plate !== d.techPlate, photoBad = p.hidden.includes('rasm');
+    const nBad = [licBad, insBad, plateBad, photoBad].filter(Boolean).length;
+    const bad = on => on ? ' class="bad"' : '';
     $('inspBody').innerHTML = shell(`
         <div class="srch"><span>🔎 ${p.noPlate ? d.licenseName : p.plate} · ${d.licenseName}</span><em>✓ topildi</em></div>
+        <div class="tsum ${nBad ? 'bad' : 'ok'}">${nBad ? `⚠ ${nBad} ta nomuvofiqlik aniqlandi` : '✓ Nomuvofiqlik aniqlanmadi'}</div>
         <div class="tcard"><h5>👤 HAYDOVCHI</h5>
-          <div class="faces">
+          <div class="faces${photoBad ? ' bad' : ''}">
             <div><canvas id="tfDriver" width="96" height="112"></canvas>Oldingizdagi<br>haydovchi</div>
             <div><canvas id="tfLic" width="96" height="112"></canvas>Guvohnomadagi<br>rasm</div>
             <div><canvas id="tfBase" width="96" height="112"></canvas>Bazadagi<br>rasm</div>
           </div>
+          ${photoBad ? '<div class="tbad">⚠ Haydovchi yuzi bazadagi rasmga mos kelmadi</div>' : ''}
           <table class="cmp">${head}
             <tr><td>F.I.Sh.</td><td>${d.licenseName}</td><td>${d.licenseName}</td></tr>
-            <tr><td>Guvohnoma muddati</td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td></tr>
+            <tr${bad(licBad)}><td>Guvohnoma muddati</td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td></tr>
           </table></div>
         <div class="tcard"><h5>🚗 TRANSPORT VOSITASI</h5>
           <table class="cmp">${head}
-            <tr><td>Davlat raqami</td><td>Mashinada: <b>${p.noPlate ? 'yo‘q' : p.plate}</b><small>Texpasportda: ${d.techPlate}</small></td><td>${d.techPlate}<small>texpasport bo‘yicha</small></td></tr>
-            <tr><td>Mashinadagi raqam bo‘yicha</td><td>${p.noPlate ? '—' : p.plate}</td><td>${plateHit}</td></tr>
+            <tr${bad(plateBad)}><td>Davlat raqami</td><td>Mashinada: <b>${p.noPlate ? 'yo‘q' : p.plate}</b><small>Texpasportda: ${d.techPlate}</small></td><td>${d.techPlate}<small>texpasport bo‘yicha</small></td></tr>
+            <tr${bad(plateBad)}><td>Mashinadagi raqam bo‘yicha</td><td>${p.noPlate ? '—' : p.plate}</td><td>${plateHit}</td></tr>
             <tr><td>Egasi</td><td>${d.techOwner}</td><td>${d.techOwner}${proxy ? '<small>Ishonchnoma: rasmiylashtirilgan</small>' : ''}</td></tr>
           </table></div>
         <div class="tcard"><h5>🛡 SUG‘URTA POLISI</h5>
           <table class="cmp">${head}
-            <tr><td>Amal qiladi</td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td></tr>
+            <tr${bad(insBad)}><td>Amal qiladi</td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td></tr>
           </table>
           <div class="muted" style="font-size:11px;margin-top:4px">📅 Bugungi sana: <b style="color:#fff">${t}</b></div></div>`) + `
       ${this.flagRow('guvohnoma', 'Guvohnoma muddati o‘tgan')}
