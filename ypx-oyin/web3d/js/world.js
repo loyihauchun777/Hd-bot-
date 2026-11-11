@@ -40,18 +40,80 @@ export function buildWorld(scene) {
 
   // ground
   scene.add(plane(L, 120, 0x6f9a52, 0, -0.02, 0));
-  // asphalt
+  // asphalt: one 32 m tile across the full road width, so wheel tracks line up with the lanes
   const asphaltTex = (() => {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-    const c = cv.getContext('2d'); c.fillStyle = '#4a4e55'; c.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 900; i++) { c.fillStyle = `rgba(${Math.random() < .5 ? 255 : 0},${Math.random() < .5 ? 255 : 0},${Math.random() < .5 ? 255 : 0},0.05)`; c.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
-    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(L / 8, 2); t.colorSpace = THREE.SRGBColorSpace; return t;
+    const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#474b52'; c.fillRect(0, 0, W, H);
+    // large tonal patches (repairs, older surface)
+    for (let i = 0; i < 7; i++) {
+      c.fillStyle = `rgba(${Math.random() < 0.5 ? '20,22,26' : '110,114,120'},${0.06 + Math.random() * 0.08})`;
+      c.fillRect(Math.random() * W, Math.random() * H, 60 + Math.random() * 220, 30 + Math.random() * 90);
+    }
+    // aggregate: light and dark specks
+    for (let i = 0; i < 16000; i++) {
+      const v = Math.random();
+      c.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.10 + Math.random() * 0.14})` : `rgba(210,212,216,${0.05 + Math.random() * 0.12})`;
+      c.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 1.6, 1 + Math.random() * 1.6);
+    }
+    // darker wheel tracks in each lane and an oil line down the lane centres
+    const zToY = z => (z + ROAD.half) / (ROAD.half * 2) * H;
+    for (const lz of ROAD.laneZ) {
+      for (const off of [-0.8, 0.8]) {
+        const y = zToY(lz + off), g = c.createLinearGradient(0, y - 14, 0, y + 14);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.16)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.fillRect(0, y - 14, W, 28);
+      }
+      for (let i = 0; i < 5; i++) { // oil stains
+        const x = Math.random() * W, y = zToY(lz) + Math.random() * 10 - 5, r = 6 + Math.random() * 10;
+        const g = c.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(10,10,14,0.35)'); g.addColorStop(1, 'rgba(10,10,14,0)');
+        c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    }
+    // cracks and a sealed repair seam
+    c.strokeStyle = 'rgba(15,16,20,0.55)'; c.lineWidth = 1.2;
+    for (let i = 0; i < 9; i++) {
+      let x = Math.random() * W, y = Math.random() * H;
+      c.beginPath(); c.moveTo(x, y);
+      for (let k = 0; k < 7; k++) { x += Math.random() * 34 - 12; y += Math.random() * 30 - 15; c.lineTo(x, y); }
+      c.stroke();
+    }
+    c.strokeStyle = 'rgba(20,20,24,0.5)'; c.lineWidth = 3; c.beginPath(); c.moveTo(620, 0); c.lineTo(628, H); c.stroke();
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    return t;
   })();
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(L, ROAD.half * 2), new THREE.MeshLambertMaterial({ map: asphaltTex }));
+  asphaltTex.repeat.set(L / 32, 1);
+  // Phong so the road can turn glossy when it rains (env.js drives colour and shininess)
+  const roadMat = new THREE.MeshPhongMaterial({ map: asphaltTex, shininess: 6, specular: 0x8899aa });
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(L, ROAD.half * 2), roadMat);
   road.rotation.x = -Math.PI / 2; road.receiveShadow = true;
   scene.add(road);
-  // bay asphalt
-  scene.add(plane(ROAD.bayTo - ROAD.bayFrom, 3, 0x4a4e55, (ROAD.bayFrom + ROAD.bayTo) / 2, 0.005, ROAD.bayZ));
+  // bay asphalt (slightly newer, darker surface)
+  const bayTex = asphaltTex.clone(); bayTex.needsUpdate = true; bayTex.repeat.set((ROAD.bayTo - ROAD.bayFrom) / 32, 0.2); bayTex.offset.set(0.3, 0.4);
+  const bayMat = new THREE.MeshPhongMaterial({ map: bayTex, shininess: 6, specular: 0x8899aa });
+  const bay = new THREE.Mesh(new THREE.PlaneGeometry(ROAD.bayTo - ROAD.bayFrom, 3), bayMat);
+  bay.rotation.x = -Math.PI / 2; bay.position.set((ROAD.bayFrom + ROAD.bayTo) / 2, 0.005, ROAD.bayZ); bay.receiveShadow = true;
+  scene.add(bay);
+
+  // paving-stone texture for the sidewalks
+  const paveTex = (() => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const c = cv.getContext('2d'); c.fillStyle = '#b7b2a6'; c.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+      const v = 170 + Math.floor(Math.random() * 26);
+      c.fillStyle = `rgb(${v + 8},${v + 4},${v - 8})`;
+      c.fillRect(x * 32 + (y % 2 ? 16 : 0) - 16 + 1, y * 32 + 1, 30, 30);
+      c.fillRect(x * 32 + (y % 2 ? 16 : 0) + 112 + 1, y * 32 + 1, 30, 30);
+    }
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const paved = (w, h, d, x, y, z) => {
+    const t = paveTex.clone(); t.needsUpdate = true; t.repeat.set(w / 2, d / 2);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ map: t }));
+    m.position.set(x, y, z); m.receiveShadow = true;
+    return m;
+  };
 
   // markings
   const white = 0xf0f0f0;
@@ -72,11 +134,11 @@ export function buildWorld(scene) {
   // sidewalks (near side has the bay cut out)
   const sw = 0xb9b4a8, curb = 0xdedad0;
   const nearLeftLen = ROAD.bayFrom + L / 2, nearRightLen = L / 2 - ROAD.bayTo;
-  scene.add(slab(nearLeftLen, 0.15, 3, sw, -L / 2 + nearLeftLen / 2, 0.075, 8.5));
-  scene.add(slab(nearRightLen, 0.15, 3, sw, ROAD.bayTo + nearRightLen / 2, 0.075, 8.5));
-  scene.add(slab(L, 0.15, 3, sw, 0, 0.075, 11.5));
+  scene.add(paved(nearLeftLen, 0.15, 3, -L / 2 + nearLeftLen / 2, 0.075, 8.5));
+  scene.add(paved(nearRightLen, 0.15, 3, ROAD.bayTo + nearRightLen / 2, 0.075, 8.5));
+  scene.add(paved(L, 0.15, 3, 0, 0.075, 11.5));
   scene.add(slab(L, 0.18, 0.2, curb, 0, 0.09, 7.05));
-  scene.add(slab(L, 0.15, 4, sw, 0, 0.075, -9));
+  scene.add(paved(L, 0.15, 4, 0, 0.075, -9));
   scene.add(slab(L, 0.18, 0.2, curb, 0, 0.09, -7.05));
   // ariq (irrigation channels) with water
   for (const z of [13.6, -11.6]) {
@@ -86,6 +148,7 @@ export function buildWorld(scene) {
   }
 
   // trees, lamps
+  const lampHeads = [];
   for (let x = -L / 2 + 6; x < L / 2; x += 11) {
     const t1 = makeChinor(0.9 + Math.random() * 0.35); t1.position.set(x + Math.random() * 2, 0, 20.5); t1.rotation.y = Math.random() * 6; scene.add(t1);
     const t2 = makeChinor(0.9 + Math.random() * 0.35); t2.position.set(x + 4 + Math.random() * 2, 0, -13.4); t2.rotation.y = Math.random() * 6; scene.add(t2);
@@ -93,6 +156,7 @@ export function buildWorld(scene) {
   for (let x = -L / 2 + 10; x < L / 2; x += 26) {
     const l1 = makeLamp(); l1.position.set(x, 0, 7.4); l1.rotation.y = -Math.PI / 2; scene.add(l1);
     const l2 = makeLamp(); l2.position.set(x + 13, 0, -7.4); l2.rotation.y = Math.PI / 2; scene.add(l2);
+    lampHeads.push(new THREE.Vector3(x, 6.85, 6.2), new THREE.Vector3(x + 13, 6.85, -6.2));
   }
 
   // apartment blocks
@@ -117,5 +181,5 @@ export function buildWorld(scene) {
   const s2 = makeSpeedSign(SPEED_LIMIT); s2.position.set(10, 0.15, 10.2); s2.rotation.y = -Math.PI / 2; scene.add(s2);
   const s3 = makeSpeedSign(SPEED_LIMIT); s3.position.set(40, 0.15, -7.7); s3.rotation.y = Math.PI / 2; scene.add(s3);
 
-  return { sun, trafficLights: [tlNear, tlFar], booth };
+  return { sun, hemi, trafficLights: [tlNear, tlFar], booth, roadMats: [roadMat, bayMat], lampHeads };
 }

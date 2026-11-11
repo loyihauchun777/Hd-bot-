@@ -8,6 +8,7 @@ import { makeYpxCar } from './ypxcar.js';
 import { loadGlbModels, glbReady, onGlbLoaded, makePatrolGlb } from './glbcar.js';
 import { YPX_CAR2 } from './ypxcar2_data.js';
 import { setLamps } from './lamps.js';
+import { createEnv, WEATHER_NAME, WEATHER_ICON } from './env.js';
 loadGlbModels();
 import { sfx } from './audio.js';
 import { RANKS, SHOP, SHIFT_SECONDS, CAR_TYPES } from './data.js';
@@ -43,6 +44,7 @@ resize();
 const world = buildWorld(scene);
 const traffic = new Traffic(scene);
 traffic.setLights(world.trafficLights);
+const env = createEnv(scene, world);
 
 // ---------- player & patrol car ----------
 let officer = null;
@@ -90,7 +92,12 @@ const G = {
 
 function newShift() {
   const rank = RANKS[save.rank];
-  G.shift = { time: SHIFT_SECONDS, quota: rank.quota, done: 0, correct: 0, points: 0, rep: 0, bribes: [], missed: 0, unjust: 0, refused: 0 };
+  // each shift starts at the next slot of the day; a 5-minute shift covers 3.5 game hours
+  const startHour = [9, 14, 18, 22][save.shifts % 4];
+  const r = Math.random();
+  const weather = save.shifts === 0 ? 'clear' : r < 0.45 ? 'clear' : r < 0.7 ? 'cloudy' : 'rain';
+  env.set(startHour, weather);
+  G.shift = { startHour, weather, time: SHIFT_SECONDS, quota: rank.quota, done: 0, correct: 0, points: 0, rep: 0, bribes: [], missed: 0, unjust: 0, refused: 0 };
 }
 
 // ---------- toast ----------
@@ -105,6 +112,7 @@ function toast(msg, cls = 'info') {
 // ---------- inspection hooks ----------
 const game = {
   toast,
+  clockText: () => clockText(),
   setCamMode(mode, car) {
     G.camMode = mode; G.camCar = car || G.camCar;
     if (mode === 'orbit' || mode === 'trunk') G.orbitA = mode === 'trunk' ? Math.PI * 0.8 : Math.PI * 0.15;
@@ -245,7 +253,16 @@ function doTalk() {
 function showControls(on) {
   $('controls').classList.toggle('hidden', !on);
   $('limitSign').classList.toggle('hidden', !on); // speed limit always in view while patrolling
+  $('btnMenu').classList.toggle('hidden', !on);
   $('hud').classList.toggle('hidden', !(on || G.mode === 'inspect'));
+}
+
+const pad2 = n => String(n).padStart(2, '0');
+function gameHour() { const s = G.shift; return s ? s.startHour + (1 - Math.max(0, s.time) / SHIFT_SECONDS) * 3.5 : env.hour; }
+// in-game date (today, so document dates stay consistent) and time of day
+function clockText() {
+  const h = gameHour() % 24, d = new Date();
+  return `${env.weather === 'clear' && env.night > 0.5 ? WEATHER_ICON.night : WEATHER_ICON[env.weather]} ${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} · ${pad2(Math.floor(h))}:${pad2(Math.floor(h % 1 * 60))}`;
 }
 
 function updateHud() {
@@ -256,6 +273,7 @@ function updateHud() {
     $('hudQuota').textContent = `Reja: ${s.correct}/${s.quota}`;
     const tt = Math.max(0, Math.ceil(s.time));
     $('hudTime').textContent = `⏱ ${Math.floor(tt / 60)}:${String(tt % 60).padStart(2, '0')}`;
+    $('hudClock').textContent = clockText();
     $('hudMoney').textContent = `⭐ ${s.points} ball`;
     const rep = Math.max(0, Math.min(100, save.rep + s.rep));
     $('hudRep').textContent = `🛡 Obro‘: ${rep}`;
@@ -283,10 +301,33 @@ $('btnStart').onclick = () => {
   officer.position.set(0, 0.15, 9.6); officer.rotation.y = Math.PI;
   showControls(true);
   updateHud();
-  toast('Smena boshlandi! Reja: ' + G.shift.quota + ' ta to‘g‘ri qaror', 'info');
+  toast(`Smena ${pad2(G.shift.startHour)}:00, ${WEATHER_NAME[G.shift.weather]}. Reja: ${G.shift.quota} ta to‘g‘ri qaror`, 'info');
+  sfx.rain(G.shift.weather === 'rain');
 };
 $('btnHelp').onclick = () => showScreen('help');
-$('btnHelpBack').onclick = () => showScreen('menu');
+// ----- pause menu -----
+function setPaused(on) {
+  G.paused = on;
+  $('pause').classList.toggle('hidden', !on);
+  if (on) {
+    const s = G.shift;
+    $('pauseInfo').innerHTML = `${clockText()}<br>Reja: <b>${s.correct}/${s.quota}</b> · Ball: <b>${s.points}</b> · ${WEATHER_NAME[env.weather]}`;
+    $('btnSound').textContent = sfx.isMuted() ? '🔇 Ovoz: o‘chirilgan' : '🔊 Ovoz: yoqilgan';
+  } else last = performance.now();
+}
+$('btnMenu').addEventListener('touchstart', e => { e.preventDefault(); setPaused(true); }, { passive: false });
+$('btnMenu').onclick = () => setPaused(true);
+$('btnResume').onclick = () => setPaused(false);
+$('btnSound').onclick = () => { sfx.setMuted(!sfx.isMuted()); $('btnSound').textContent = sfx.isMuted() ? '🔇 Ovoz: o‘chirilgan' : '🔊 Ovoz: yoqilgan'; };
+$('btnPauseHelp').onclick = () => { $('pause').classList.add('hidden'); G.helpFromPause = true; showScreen('help'); };
+$('btnEndShift').onclick = () => { setPaused(false); if (G.current) { traffic.release(G.current); G.current = null; } endShift(); };
+$('btnQuit').onclick = () => {
+  setPaused(false); sfx.rain(false);
+  G.mode = 'menu'; G.current = null; showControls(false); $('hud').classList.add('hidden'); marker.visible = false;
+  for (const el of labelEls.values()) el.remove(); labelEls.clear();
+  menuStats(); showScreen('menu');
+};
+$('btnHelpBack').onclick = () => { if (G.helpFromPause) { G.helpFromPause = false; showScreen(null); $('pause').classList.remove('hidden'); } else showScreen('menu'); };
 $('btnShop').onclick = () => { renderShop(); showScreen('shop'); };
 $('btnShopBack').onclick = () => { menuStats(); showScreen('menu'); };
 $('btnReportOk').onclick = () => { menuStats(); G.mode = 'menu'; showScreen('menu'); };
@@ -321,6 +362,7 @@ function renderShop() {
 }
 
 function endShift() {
+  sfx.rain(false);
   const s = G.shift;
   G.mode = 'report';
   showControls(false);
@@ -505,8 +547,15 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (G.paused) { renderer.render(scene, camera); requestAnimationFrame(frame); return; }
   G.t += dt;
   traffic.update(dt, G.t);
+  env.hour = gameHour();
+  env.update(dt, camera);
+  // headlights: on at night and in the rain, and always on the car being inspected
+  const lightsOn = env.night > 0.45 || env.raining;
+  const checking = G.mode === 'inspect' && (G.camMode === 'orbit' || G.camMode === 'trunk') ? G.camCar : null;
+  for (const c of traffic.cars) { const l = c.mesh.userData.lamps; if (l) l.visible = lightsOn || c === checking; }
 
   if (G.mode === 'play') {
     updatePlayer(dt);
@@ -551,4 +600,4 @@ camera.position.set(-3, 9, 29);
 requestAnimationFrame(frame);
 
 // test hook (used by automated browser tests)
-window.__ypx = { G, traffic, save, cam: camera, officer: () => officer, doWhistle, doTalk, inspection };
+window.__ypx = { env, G, traffic, save, cam: camera, officer: () => officer, doWhistle, doTalk, inspection };

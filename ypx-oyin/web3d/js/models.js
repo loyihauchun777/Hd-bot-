@@ -260,31 +260,39 @@ export function makeCar(type, opts = {}) {
 // ---------- environment pieces ----------
 function windowsTexture(cols, rows, wall) {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 512;
-  const c = cv.getContext('2d');
+  const ev = document.createElement('canvas'); ev.width = 256; ev.height = 512; // lit windows (night glow)
+  const c = cv.getContext('2d'), e = ev.getContext('2d');
   c.fillStyle = wall; c.fillRect(0, 0, 256, 512);
+  e.fillStyle = '#000'; e.fillRect(0, 0, 256, 512);
   const cw = 256 / cols, rh = 512 / rows;
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
     c.fillStyle = Math.random() < 0.15 ? '#e9d79a' : '#4a5d72';
     c.fillRect(x * cw + cw * 0.2, y * rh + rh * 0.22, cw * 0.6, rh * 0.5);
     c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(x * cw + cw * 0.15, y * rh + rh * 0.72, cw * 0.7, rh * 0.06); // balcony line
+    if (Math.random() < 0.45) {
+      e.fillStyle = ['#ffd98a', '#ffe9b8', '#ffc76a', '#cfe4ff'][Math.floor(Math.random() * 4)];
+      e.fillRect(x * cw + cw * 0.2, y * rh + rh * 0.22, cw * 0.6, rh * 0.5);
+    }
   }
   // panel seams
   c.strokeStyle = 'rgba(0,0,0,.08)'; c.lineWidth = 2;
   for (let y = 0; y <= rows; y++) { c.beginPath(); c.moveTo(0, y * rh); c.lineTo(256, y * rh); c.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  const et = new THREE.CanvasTexture(ev); et.colorSpace = THREE.SRGBColorSpace;
+  return [t, et];
 }
 
 const buildingTextures = [];
+export const buildingMats = []; // env.js raises their emissiveIntensity at night
 export function makeBuilding(w, h, d) {
   if (!buildingTextures.length) {
     for (const wall of ['#d9d2c3', '#c9c1b0', '#e3dccd', '#cdbfa6', '#bfc7cc']) buildingTextures.push(windowsTexture(6, 9, wall));
   }
-  const tex = buildingTextures[Math.floor(Math.random() * buildingTextures.length)].clone();
-  tex.needsUpdate = true;
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(Math.max(1, Math.round(w / 12)), Math.max(1, Math.round(h / 27)));
-  const side = new THREE.MeshLambertMaterial({ map: tex });
+  const pair = buildingTextures[Math.floor(Math.random() * buildingTextures.length)];
+  const rep = t => { const c = t.clone(); c.needsUpdate = true; c.wrapS = c.wrapT = THREE.RepeatWrapping;
+    c.repeat.set(Math.max(1, Math.round(w / 12)), Math.max(1, Math.round(h / 27))); return c; };
+  const side = new THREE.MeshLambertMaterial({ map: rep(pair[0]), emissiveMap: rep(pair[1]), emissive: 0xffffff, emissiveIntensity: 0 });
+  buildingMats.push(side);
   const roof = mat(0x6b6b6b);
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [side, side, roof, roof, side, side]);
   m.position.y = h / 2;

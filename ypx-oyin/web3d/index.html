@@ -18,13 +18,14 @@
     <div id="hudRank"></div>
     <div id="hudQuota"></div>
   </div>
-  <div id="hudTime"></div>
+  <div class="hud-mid"><div id="hudTime"></div><div id="hudClock"></div></div>
   <div class="hud-right">
     <div id="hudMoney"></div>
     <div id="hudRep"></div>
   </div>
 </div>
 <div id="toast"></div>
+<button id="btnMenu" class="hidden" aria-label="Menyu">☰</button>
 <div id="limitSign" class="hidden">60<small>km/soat</small></div>
 
 <!-- touch controls -->
@@ -116,6 +117,19 @@
     <h2 id="reportTitle">Smena yakuni</h2>
     <div id="reportBody"></div>
     <button id="btnReportOk" class="primary">Davom etish</button>
+  </div>
+</div>
+
+<!-- pause menu -->
+<div id="pause" class="screen hidden">
+  <div class="menu-card">
+    <div class="logo">⏸ Pauza</div>
+    <div id="pauseInfo" class="stats"></div>
+    <button id="btnResume" class="primary">▶ Davom etish</button>
+    <button id="btnSound">🔊 Ovoz: yoqilgan</button>
+    <button id="btnPauseHelp">❓ Qanday o‘ynash</button>
+    <button id="btnEndShift">🏁 Smenani tugatish</button>
+    <button id="btnQuit" class="danger">🚪 Bosh menyu (smena bekor qilinadi)</button>
   </div>
 </div>
 

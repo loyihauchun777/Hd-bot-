@@ -2,12 +2,14 @@
 let ctx = null;
 let master = null;
 let ambient = null;
+let rainSnd = null;
+let muted = false;
 
 function ac() {
   if (!ctx) {
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
-      master = ctx.createGain(); master.gain.value = 0.8; master.connect(ctx.destination);
+      master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8; master.connect(ctx.destination);
     } catch (e) { ctx = null; }
   }
   if (ctx && ctx.state === 'suspended') ctx.resume();
@@ -66,6 +68,18 @@ export const sfx = {
     ambient = { src, g };
   },
   ambientStop() { if (ambient) { try { ambient.src.stop(); } catch (e) {} ambient = null; } },
+  rain(on) {
+    const c = ac(); if (!c) return;
+    if (on && !rainSnd) {
+      const src = c.createBufferSource(); src.buffer = noiseBuffer(c, 3); src.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1400;
+      const g = c.createGain(); g.gain.value = 0.035;
+      src.connect(f); f.connect(g); g.connect(master); src.start();
+      rainSnd = src;
+    } else if (!on && rainSnd) { try { rainSnd.stop(); } catch (e) {} rainSnd = null; }
+  },
+  setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.8; },
+  isMuted() { return muted; },
 };
 
 // ---- voice lines ----
@@ -89,6 +103,7 @@ export function playVoice(voice, id, text) {
     if (!a) { a = new Audio(src); a.preload = 'auto'; voiceCache.set(src, a); }
     current = a;
     a.currentTime = 0;
+    a.muted = muted;
     a.onended = finish;
     a.onerror = () => { voiceCache.set(src, null); setTimeout(finish, fallback); };
     const p = a.play();

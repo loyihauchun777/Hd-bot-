@@ -177,12 +177,19 @@ export class Inspection {
   // ---------- tablet: compare documents with the YPX database ----------
   async render_tablet() {
     const p = this.car.prof, d = p.docs;
+    const clock = this.game.clockText ? this.game.clockText() : '';
+    const shell = inner => `<div class="tablet"><div class="scr">
+        <div class="sbar"><span>${clock}</span><span>📶 4G · 🔋 82%</span></div>
+        <div class="app"><div class="lg">YPX</div><div><b>Yagona axborot bazasi</b><small>Yo‘l-patrul xizmati · inspektor rejimi</small></div></div>
+        ${inner}</div></div>`;
     if (!this.tabletLoaded) {
-      $('inspBody').innerHTML = `<div class="tablet"><div class="loading">🔎 YPX bazasidan qidirilmoqda...<br><br>${p.noPlate ? 'texpasport' : p.plate} · ${d.licenseName}</div></div>`;
+      $('inspBody').innerHTML = shell(`<div class="srch"><span>🔎 ${p.noPlate ? d.licenseName : p.plate}</span><span class="muted">qidirilmoqda…</span></div>
+        <div class="prog"><i></i></div><div class="loading">Bazaga so‘rov yuborildi</div>`);
       sfx.beep();
       await sleep(1100);
       if (!this.active || this.curTab !== 'tablet') return;
       this.tabletLoaded = true;
+      sfx.beep();
     }
     const today = new Date();
     const t = String(today.getDate()).padStart(2, '0') + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + today.getFullYear();
@@ -198,24 +205,30 @@ export class Inspection {
       plateHit = this.otherCar;
     }
     const proxy = d.techOwner !== d.licenseName;
-    $('inspBody').innerHTML = `
-      <div class="tablet">
-        <div class="bar"><span>📱 YPX bazasi</span><span>📅 Bugun: <b style="color:#fff">${t}</b></span></div>
-        <div class="faces">
-          <div><canvas id="tfDriver" width="96" height="112"></canvas>Oldingizdagi<br>haydovchi</div>
-          <div><canvas id="tfLic" width="96" height="112"></canvas>Guvohnomadagi<br>rasm</div>
-          <div><canvas id="tfBase" width="96" height="112"></canvas>Bazadagi<br>rasm</div>
-        </div>
-        <table class="cmp">
-          <tr><th>Maydon</th><th>Hujjatda</th><th>Bazada</th></tr>
-          <tr><td>F.I.Sh.</td><td>${d.licenseName}</td><td>${d.licenseName}</td></tr>
-          <tr><td>Guvohnoma muddati</td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td></tr>
-          <tr><td>Davlat raqami</td><td>Mashinada: <b>${p.noPlate ? 'yo‘q' : p.plate}</b><small>Texpasportda: ${d.techPlate}</small></td><td>${d.techPlate}<small>texpasport bo‘yicha</small></td></tr>
-          <tr><td>Mashinadagi raqam bo‘yicha qidiruv</td><td>${p.noPlate ? '—' : p.plate}</td><td>${plateHit}</td></tr>
-          <tr><td>Mashina egasi</td><td>${d.techOwner}</td><td>${d.techOwner}${proxy ? '<small>Ishonchnoma: rasmiylashtirilgan</small>' : ''}</td></tr>
-          <tr><td>Sug‘urta polisi</td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td></tr>
-        </table>
-      </div>
+    const head = '<tr><th></th><th>Hujjatda</th><th>Bazada</th></tr>';
+    $('inspBody').innerHTML = shell(`
+        <div class="srch"><span>🔎 ${p.noPlate ? d.licenseName : p.plate} · ${d.licenseName}</span><em>✓ topildi</em></div>
+        <div class="tcard"><h5>👤 HAYDOVCHI</h5>
+          <div class="faces">
+            <div><canvas id="tfDriver" width="96" height="112"></canvas>Oldingizdagi<br>haydovchi</div>
+            <div><canvas id="tfLic" width="96" height="112"></canvas>Guvohnomadagi<br>rasm</div>
+            <div><canvas id="tfBase" width="96" height="112"></canvas>Bazadagi<br>rasm</div>
+          </div>
+          <table class="cmp">${head}
+            <tr><td>F.I.Sh.</td><td>${d.licenseName}</td><td>${d.licenseName}</td></tr>
+            <tr><td>Guvohnoma muddati</td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td><td>${d.licenseUntil}<small>${daysText(d.licenseUntil)}</small></td></tr>
+          </table></div>
+        <div class="tcard"><h5>🚗 TRANSPORT VOSITASI</h5>
+          <table class="cmp">${head}
+            <tr><td>Davlat raqami</td><td>Mashinada: <b>${p.noPlate ? 'yo‘q' : p.plate}</b><small>Texpasportda: ${d.techPlate}</small></td><td>${d.techPlate}<small>texpasport bo‘yicha</small></td></tr>
+            <tr><td>Mashinadagi raqam bo‘yicha</td><td>${p.noPlate ? '—' : p.plate}</td><td>${plateHit}</td></tr>
+            <tr><td>Egasi</td><td>${d.techOwner}</td><td>${d.techOwner}${proxy ? '<small>Ishonchnoma: rasmiylashtirilgan</small>' : ''}</td></tr>
+          </table></div>
+        <div class="tcard"><h5>🛡 SUG‘URTA POLISI</h5>
+          <table class="cmp">${head}
+            <tr><td>Amal qiladi</td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td><td>${d.insuranceUntil}<small>${daysText(d.insuranceUntil)}</small></td></tr>
+          </table>
+          <div class="muted" style="font-size:11px;margin-top:4px">📅 Bugungi sana: <b style="color:#fff">${t}</b></div></div>`) + `
       ${this.flagRow('guvohnoma', 'Guvohnoma muddati o‘tgan')}
       ${this.flagRow('rasm', 'Haydovchi guvohnomadagi odam emas')}
       ${this.flagRow('texraqam', 'Raqam mashinaga mos emas')}
