@@ -24,7 +24,10 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);          // localStorage for the high score
+        s.setDomStorageEnabled(true);
+        s.setTextZoom(100);                    // layout is designed in px; ignore system font scale
+        s.setMinimumFontSize(1);
+        s.setMinimumLogicalFontSize(1);          // localStorage for the high score
         s.setMediaPlaybackRequiresUserGesture(false);
         // Serve assets over https://appassets.androidplatform.net so ES modules and audio load (file:// blocks modules).
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()

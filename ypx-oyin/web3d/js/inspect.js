@@ -179,12 +179,12 @@ export class Inspection {
     const sel = this.docSel;
     $('inspBody').innerHTML = `
       <div class="today">📅 Bugun: <b>${t}</b> · 🚗 Raqam: <b>${p.noPlate ? 'YO‘Q' : p.plate}</b></div>
-      <div class="minis">${Object.entries(cards).map(([k, c]) =>
-        `<div class="mini ${k === sel ? 'sel' : ''}" data-doc="${k}">${c.html}<label>${c.name}${flagged[k].some(f => this.flags.has(f)) ? ' ⚑' : ''}</label></div>`).join('')}</div>
+      <div class="seg">${Object.entries(cards).map(([k, c]) =>
+        `<button class="${k === sel ? 'sel' : ''}" data-doc="${k}">${c.name}${flagged[k].some(f => this.flags.has(f)) ? ' ⚑' : ''}</button>`).join('')}</div>
       <div class="docbig">${cards[sel].html}</div>
       ${cards[sel].flags}`;
     $('inspBody').querySelectorAll('.licPhoto').forEach(cv => drawFace(cv, { ...d.licensePhoto, bg: '#dde6f0', drunk: false }));
-    $('inspBody').querySelectorAll('.mini').forEach(m => m.onclick = () => { sfx.click(); this.docSel = m.dataset.doc; this.render_docs(); });
+    $('inspBody').querySelectorAll('.seg button').forEach(m => m.onclick = () => { sfx.click(); this.docSel = m.dataset.doc; this.render_docs(); });
     this.bindFlags();
     if (d.techOwner !== d.licenseName && !this.ownerLineSaid && sel === 'tech') { this.ownerLineSaid = true; this.script([['d', 'D14']]); }
   }
