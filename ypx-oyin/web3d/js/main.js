@@ -608,4 +608,4 @@ camera.position.set(-3, 9, 29);
 requestAnimationFrame(frame);
 
 // test hook (used by automated browser tests)
-window.__ypx = { env, G, traffic, save, cam: camera, officer: () => officer, doWhistle, doTalk, inspection };
+window.__ypx = { marker, env, G, traffic, save, cam: camera, officer: () => officer, doWhistle, doTalk, inspection };
